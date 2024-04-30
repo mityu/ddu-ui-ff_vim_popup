@@ -46,6 +46,7 @@ export class UiState
 
   var keymapper: dict<any>
   var _actionFns: dict<MapActionFn>
+  var _actionParams: list<any>
   var _hideCursor: bool
   var _t_ve_save: string
 
@@ -53,6 +54,7 @@ export class UiState
     this._t_ve_save = &t_ve
     this._hideCursor = uiParams.hideCursor
     this._actionFns = {}
+    this._actionParams = []
     this.keymapper = vital#ddu_ui_ff_vim_popup#import('Keymapper').new()
     this.keymapper.add_mode('n')
     this.keymapper.add_mode('i', {handle_count: 0})
@@ -79,7 +81,14 @@ export class UiState
         break
       elseif r.resolved =~# '^action:'
         const uiName = winbufnr(winId)->getbufvar('ddu_ui_name')
-        ddu#ui#sync_action(r.resolved[7 :], {count1: r.count1}, uiName)
+        const [action, paramIdx] = r.resolved[7 :]->matchlist('^\([^:]*\)\%(:\(.*\)\)\?$')[1 : 2]
+        if paramIdx ==# ''
+          ddu#ui#sync_action(action, {count1: r.count1}, uiName)
+        else
+          const userParams = this._actionParams[str2nr(paramIdx)]
+          const params = extend({count1: r.count1}, userParams, 'error')
+          ddu#ui#sync_action(action, params, uiName)
+        endif
       elseif r.resolved =~# '^key:'
         const keys = r.resolved[4 :]->ReplaceTermcodes()
         this.keymapper.prepend_keys(keys)
@@ -102,9 +111,17 @@ export class UiState
     endfor
   enddef
 
-  def MapAction(modes: string, lhs: string, rhs: string)
+  def MapAction(modes: string, lhs: string, action: string, params: dict<any>)
+    var rhs = 'action:' .. action
+
+    if !empty(params)
+      const idx = len(this._actionParams)
+      this._actionParams->add(params)
+      rhs ..= ':' .. idx
+    endif
+
     for mode in modes
-      this.keymapper.add_mapping(mode, lhs, 'action:' .. rhs)
+      this.keymapper.add_mapping(mode, lhs, rhs)
     endfor
   enddef
 
@@ -114,6 +131,12 @@ export class UiState
     this._actionFns[name] = Fn
     for mode in modes
       this.keymapper.add_mapping(mode, lhs, rhs)
+    endfor
+  enddef
+
+  def Unmap(modes: string, lhs: string)
+    for mode in modes
+      this.keymapper.remove_mapping(mode, lhs)
     endfor
   enddef
 endclass
@@ -169,7 +192,7 @@ enddef
 export def SetItems(winId: number, items: list<string>, highlights: list<dict<any>>)
   popup_settext(winId, items)
 
-  # TODO: Be async
+  # TODO: Be async?
   const bufnr = winbufnr(winId)
   prop_clear(1, line('$', winId), {bufnr: bufnr})
   for h in highlights
@@ -186,6 +209,7 @@ export def SetItems(winId: number, items: list<string>, highlights: list<dict<an
       type: h.name
     })
   endfor
+  redraw  # Sometimes screen is not redrawn immediately.
 enddef
 
 export def CallKeymapperMethod(uiStateId: number, method: string, ...args: list<any>): any

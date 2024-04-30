@@ -20,11 +20,11 @@ export def MapKey(modes: string, lhs: string, rhs: string)
   Internal.UiState.configuringInstance.MapKey(modes, lhs, rhs)
 enddef
 
-export def MapAction(modes: string, lhs: string, action: string)
+export def MapAction(modes: string, lhs: string, action: string, params: dict<any> = {})
   if !CheckMappableState()
     return
   endif
-  Internal.UiState.configuringInstance.MapAction(modes, lhs, action)
+  Internal.UiState.configuringInstance.MapAction(modes, lhs, action, params)
 enddef
 
 export def MapFunction(modes: string, lhs: string, Fn: Internal.MapActionFn)
@@ -32,4 +32,11 @@ export def MapFunction(modes: string, lhs: string, Fn: Internal.MapActionFn)
     return
   endif
   Internal.UiState.configuringInstance.MapFunction(modes, lhs, Fn)
+enddef
+
+export def Unmap(modes: string, lhs: string)
+  if !CheckMappableState()
+    return
+  endif
+  Internal.UiState.configuringInstance.Unmap(modes, lhs)
 enddef

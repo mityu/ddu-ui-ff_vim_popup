@@ -35,6 +35,12 @@ const isActionParamCount1 = is.ObjectOf({
   count1: is.OptionalOf(is.Number),
 });
 
+const isExpandItemParams = is.ObjectOf({
+  mode: is.OptionalOf(is.LiteralOf("toggle")),
+  maxLevel: is.OptionalOf(is.Number),
+  isGrouped: is.OptionalOf(is.Boolean),
+});
+
 const isSign = is.ObjectOf({
   name: is.String,
   group: is.String,
@@ -86,6 +92,7 @@ export type Params = {
     cursorline: string;
     selected: string;
   };
+  displayTree: boolean;
   reversed: boolean;
   hideCursor: boolean;
   prompt: string;
@@ -287,12 +294,79 @@ export class Ui extends BaseUi<Params> {
     return Promise.resolve();
   }
 
-  override collapseItem() {
-    return Promise.resolve(0); // TODO:
+  // This function is copied from
+  // https://github.com/Shougo/ddu-ui-ff/blob/60f642fe555ded2cc65fd5d903fd7d119ef86766/denops/%40ddu-uis/ff.ts#L753-L784
+  // which distributed under the MIT License.
+  override collapseItem(args: {
+    item: DduItem;
+  }) {
+    // NOTE: treePath may be list.  So it must be compared by JSON.
+    const startIndex = this.#items.findIndex(
+      (item: DduItem) =>
+        equal(item.treePath, args.item.treePath) &&
+        item.__sourceIndex === args.item.__sourceIndex,
+    );
+    if (startIndex < 0) {
+      return Promise.resolve(0);
+    }
+
+    const endIndex = this.#items.slice(startIndex + 1).findIndex(
+      (item: DduItem) => item.__level <= args.item.__level,
+    );
+
+    const prevLength = this.#items.length;
+    if (endIndex < 0) {
+      this.#items = this.#items.slice(0, startIndex + 1);
+    } else {
+      this.#items = this.#items.slice(0, startIndex + 1).concat(
+        this.#items.slice(startIndex + endIndex + 1),
+      );
+    }
+
+    this.#items[startIndex] = args.item;
+
+    this.#selectedItems.clear();
+
+    return Promise.resolve(prevLength - this.#items.length);
   }
 
-  override expandItem() {
-    return Promise.resolve(0); // TODO:
+  // This function is copied from
+  // https://github.com/Shougo/ddu-ui-ff/blob/60f642fe555ded2cc65fd5d903fd7d119ef86766/denops/%40ddu-uis/ff.ts#L717-L751
+  // which distributed under the MIT License.
+  override expandItem(args: {
+    uiParams: Params;
+    parent: DduItem;
+    children: DduItem[];
+    isGrouped: boolean;
+  }) {
+    // NOTE: treePath may be list.  So it must be compared by JSON.
+    const index = this.#items.findIndex(
+      (item: DduItem) =>
+        equal(item.treePath, args.parent.treePath) &&
+        item.__sourceIndex === args.parent.__sourceIndex,
+    );
+
+    const insertItems = args.children;
+
+    const prevLength = this.#items.length;
+    if (index >= 0) {
+      if (args.isGrouped) {
+        // Replace parent
+        this.#items[index] = insertItems[0];
+      } else {
+        this.#items = this.#items.slice(0, index + 1).concat(insertItems)
+          .concat(
+            this.#items.slice(index + 1),
+          );
+        this.#items[index] = args.parent;
+      }
+    } else {
+      this.#items = this.#items.concat(insertItems);
+    }
+
+    this.#selectedItems.clear();
+
+    return Promise.resolve(prevLength - this.#items.length);
   }
 
   override async searchItem(args: {
@@ -313,10 +387,7 @@ export class Ui extends BaseUi<Params> {
       });
       this.#cursorItem = cursorItem;
       this.#firstDisplayItem = firstDisplayItem;
-      await this.#updateDisplayItems(args.denops, {
-        reversed: args.uiParams.reversed,
-        hl_selected: args.uiParams.highlights.selected,
-      });
+      await this.#updateDisplayItems(args.denops, args.uiParams);
       await this.#updateCursorline(args.denops, args.uiParams.reversed);
     }
   }
@@ -338,10 +409,7 @@ export class Ui extends BaseUi<Params> {
     }
 
     // TODO: Set preview contents, etc.
-    await this.#updateDisplayItems(args.denops, {
-      reversed: args.uiParams.reversed,
-      hl_selected: args.uiParams.highlights.selected,
-    });
+    await this.#updateDisplayItems(args.denops, args.uiParams);
     await this.#updateCursorline(args.denops, args.uiParams.reversed);
   }
 
@@ -466,28 +534,36 @@ export class Ui extends BaseUi<Params> {
 
   async #updateDisplayItems(
     denops: Denops,
-    context: { hl_selected: string; reversed: boolean },
+    uiParams: Params,
   ) {
+    const getTreePrefix = (item: DduItem) => {
+      if (uiParams.displayTree) {
+        const label = !item.isTree ? "  " : item.__expanded ? "- " : "+ "
+        return " ".repeat(item.__level) + label;
+      } else {
+        return "";
+      }
+    }
     const displayItems = (() => {
       const items = this.#items.slice(
         this.#firstDisplayItem,
         this.#firstDisplayItem + this.#maxDisplayItemLength,
       );
-      if (context.reversed) {
+      if (uiParams.reversed) {
         return items.reverse();
       } else {
         return items;
       }
     })();
     const itemTexts = displayItems.map((v: DduItem): string => {
-      return v.display ?? v.word;
+      return getTreePrefix(v) + (v.display ?? v.word);
     });
     const itemHighlights = displayItems.flatMap((v: DduItem, index: number) => {
       const linenr = index + 1;
       if (this.#selectedItems.has(this.#firstDisplayItem + index)) {
         return [{
           name: "ddu-ui-selected",
-          hl_group: context.hl_selected,
+          hl_group: uiParams.highlights.selected,
           line: linenr,
           col: 1,
           width: strBytesLength(itemTexts[this.#firstDisplayItem + index]),
@@ -617,6 +693,25 @@ export class Ui extends BaseUi<Params> {
     }
   }
 
+  async #collapseItemAction(denops: Denops, options: DduOptions) {
+    if (this.#items.length === 0) {
+      return ActionFlags.None;
+    };
+
+    const item = this.#items[this.#cursorItem];
+    if (!item.isTree || item.__level < 0) {
+      return ActionFlags.None;
+    }
+
+    await denops.dispatcher.redrawTree(
+      options.name,
+      "collapse",
+      [{ item }],
+    );
+
+    return ActionFlags.None;
+  }
+
   override actions: UiActions<Params> = {
     quit: async (args: {
       denops: Denops;
@@ -647,10 +742,7 @@ export class Ui extends BaseUi<Params> {
       if (this.#firstDisplayItem !== firstDisplayItem) {
         this.#firstDisplayItem = firstDisplayItem;
         this.#cursorItem = cursorItem;
-        await this.#updateDisplayItems(args.denops, {
-          reversed: args.uiParams.reversed,
-          hl_selected: args.uiParams.highlights.selected,
-        });
+        await this.#updateDisplayItems(args.denops, args.uiParams);
         await this.#updateCursorline(args.denops, args.uiParams.reversed);
       } else if (this.#cursorItem !== cursorItem) {
         this.#cursorItem = cursorItem;
@@ -680,10 +772,7 @@ export class Ui extends BaseUi<Params> {
       if (this.#firstDisplayItem !== firstDisplayItem) {
         this.#firstDisplayItem = firstDisplayItem;
         this.#cursorItem = cursorItem;
-        await this.#updateDisplayItems(args.denops, {
-          reversed: args.uiParams.reversed,
-          hl_selected: args.uiParams.highlights.selected,
-        });
+        await this.#updateDisplayItems(args.denops, args.uiParams);
         await this.#updateCursorline(args.denops, args.uiParams.reversed);
       } else if (this.#cursorItem !== cursorItem) {
         this.#cursorItem = cursorItem;
@@ -713,6 +802,42 @@ export class Ui extends BaseUi<Params> {
         params.params ?? {},
       );
 
+      return ActionFlags.None;
+    },
+    collapseItem: async (args: {
+      denops: Denops;
+      options: DduOptions;
+    }) => {
+      return await this.#collapseItemAction(args.denops, args.options);
+    },
+    expandItem: async (args: {
+      denops: Denops;
+      options: DduOptions;
+      actionParams: unknown;
+    }) => {
+      if (this.#items.length === 0) {
+        return ActionFlags.None;
+      }
+
+      const item = this.#items[this.#cursorItem];
+      const params = ensure(args.actionParams, isExpandItemParams);
+
+      if (item.__expanded) {
+        if (params.mode === "toggle") {
+          return await this.#collapseItemAction(args.denops, args.options);
+        }
+        return ActionFlags.None;
+      }
+
+      await args.denops.dispatcher.redrawTree(
+        args.options.name,
+        "expand",
+        [{
+          item,
+          maxLevel: params.maxLevel ?? 0,
+          isGrouped: params.isGrouped ?? false,
+        }],
+      );
       return ActionFlags.None;
     },
     toggleSelectItem: () => {
@@ -899,7 +1024,7 @@ export class Ui extends BaseUi<Params> {
         };
         const preview = {
           line: finder.line,
-          col: finder.col + finder.width + 1,
+          col: finder.col + finder.width,
           width: width - finder.width,
           height: height,
         };
@@ -927,6 +1052,7 @@ export class Ui extends BaseUi<Params> {
         popup: "Normal",
         selected: "Statement",
       },
+      displayTree: true,
       reversed: false,
       hideCursor: false,
       prompt: ">> ",
