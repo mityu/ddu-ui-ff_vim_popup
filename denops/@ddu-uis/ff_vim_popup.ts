@@ -21,6 +21,7 @@ import {
   is,
   PredicateType,
 } from "https://deno.land/x/unknownutil@v3.18.0/mod.ts";
+import { pick } from "https://deno.land/std@0.219.0/collections/mod.ts";
 import { Popup, PopupCreateArgs } from "./ff_vim_popup/popup.ts";
 import { invokeVimFunction, strBytesLength } from "./ff_vim_popup/util.ts";
 import {
@@ -98,16 +99,6 @@ export type Params = {
   prompt: string;
   handleCtrlC: boolean;
 };
-
-function pick<T, K extends keyof T>(
-  obj: T,
-  keys: K[],
-): Pick<T, K> {
-  return keys.reduce((acc, k) => ({ ...acc, [k]: obj[k] }), {}) as Pick<
-    T,
-    K
-  >;
-}
 
 function moveCursorline(
   cursorItem: number,
@@ -538,12 +529,12 @@ export class Ui extends BaseUi<Params> {
   ) {
     const getTreePrefix = (item: DduItem) => {
       if (uiParams.displayTree) {
-        const label = !item.isTree ? "  " : item.__expanded ? "- " : "+ "
+        const label = !item.isTree ? "  " : item.__expanded ? "- " : "+ ";
         return " ".repeat(item.__level) + label;
       } else {
         return "";
       }
-    }
+    };
     const displayItems = (() => {
       const items = this.#items.slice(
         this.#firstDisplayItem,
@@ -696,7 +687,7 @@ export class Ui extends BaseUi<Params> {
   async #collapseItemAction(denops: Denops, options: DduOptions) {
     if (this.#items.length === 0) {
       return ActionFlags.None;
-    };
+    }
 
     const item = this.#items[this.#cursorItem];
     if (!item.isTree || item.__level < 0) {
