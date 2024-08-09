@@ -65,7 +65,7 @@ const isLayoutParams = is.ObjectOf({
   preview: isBounds,
 });
 export type LayoutParams = PredicateType<typeof isLayoutParams>;
-export type LayoutParamsProvider = () => Promise<LayoutParams>;
+export type LayoutParamsProvider = (denops: Denops) => Promise<LayoutParams>;
 
 type Layout = {
   lister: PopupCreateArgs;
@@ -165,7 +165,7 @@ async function calcLayout(
   const normalizeBorder = (l: number[]) => l.map((v) => v === 0 ? 0 : 1);
 
   const isFilterTop = uiParams.filterPosition === "top";
-  const bounds = await (async (): LayoutParams => {
+  const bounds = await (async (): Promise<LayoutParams> => {
     if (typeof uiParams.bounds === "function") {
       // TypeScript function.  Just call it.
       return await uiParams.bounds(denops);
