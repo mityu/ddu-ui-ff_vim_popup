@@ -1073,7 +1073,7 @@ export class Ui extends BaseUi<Params> {
         popup: "Normal",
         selected: "Statement",
       },
-      displayTree: true,
+      displayTree: false,
       reversed: false,
       hideCursor: false,
       prompt: ">> ",
