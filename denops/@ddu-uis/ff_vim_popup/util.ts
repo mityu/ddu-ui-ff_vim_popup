@@ -1,4 +1,4 @@
-import { Denops } from "https://deno.land/x/ddu_vim@v4.0.0/deps.ts";
+import { type Denops } from "./deps.ts";
 
 export async function invokeVimFunction(
   denops: Denops,

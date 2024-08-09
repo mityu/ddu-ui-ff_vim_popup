@@ -1,9 +1,4 @@
-import {
-  Denops,
-  ensure,
-  fn,
-  is,
-} from "https://deno.land/x/ddu_vim@v4.0.0/deps.ts";
+import { type Denops, ensure, fn, is } from "./deps.ts";
 import { strBytesLength, strBytesPart } from "./util.ts";
 
 export class LineBuffer {

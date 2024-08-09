@@ -1,30 +1,27 @@
 import {
   ActionFlags,
+  as,
+  assert,
   BaseActionParams,
   BaseUi,
+  batch,
   Context,
   DduItem,
   DduOptions,
+  Denops,
+  ensure,
+  equal,
+  fn,
+  is,
   ItemHighlight,
+  pick,
+  PredicateType,
   PreviewContext,
   Previewer,
   UiActions,
   UiOptions,
-} from "https://deno.land/x/ddu_vim@v4.0.0/types.ts";
-import {
-  batch,
-  Denops,
-  equal,
-  fn,
   vars,
-} from "https://deno.land/x/ddu_vim@v4.0.0/deps.ts";
-import {
-  assert,
-  ensure,
-  is,
-  PredicateType,
-} from "https://deno.land/x/unknownutil@v3.18.0/mod.ts";
-import { pick } from "https://deno.land/std@0.219.0/collections/mod.ts";
+} from "./ff_vim_popup/deps.ts";
 import { Popup, PopupCreateArgs, PreviewPopup } from "./ff_vim_popup/popup.ts";
 import { invokeVimFunction, strBytesLength } from "./ff_vim_popup/util.ts";
 import {
@@ -36,13 +33,13 @@ import {
 const propTypeName = "ddu-ui-ff_vim_popup-prop-type-cursor";
 
 const isActionParamCount1 = is.ObjectOf({
-  count1: is.OptionalOf(is.Number),
+  count1: as.Optional(is.Number),
 });
 
 const isSign = is.ObjectOf({
   name: is.String,
   group: is.String,
-  id: is.OptionalOf(is.Number),
+  id: as.Optional(is.Number),
 });
 type Sign = PredicateType<typeof isSign>;
 
@@ -809,9 +806,9 @@ export class Ui extends BaseUi<Params> {
       }
 
       const isExpandItemParams = is.ObjectOf({
-        mode: is.OptionalOf(is.LiteralOf("toggle")),
-        maxLevel: is.OptionalOf(is.Number),
-        isGrouped: is.OptionalOf(is.Boolean),
+        mode: as.Optional(is.LiteralOf("toggle")),
+        maxLevel: as.Optional(is.Number),
+        isGrouped: as.Optional(is.Boolean),
       });
 
       const item = this.#items[this.#cursorItem];

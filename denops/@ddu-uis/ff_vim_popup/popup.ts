@@ -4,20 +4,18 @@ import {
   BufferPreviewer,
   Context,
   DduItem,
-  NoFilePreviewer,
-  PreviewContext,
-  Previewer,
-  TerminalPreviewer,
-} from "https://deno.land/x/ddu_vim@v4.0.0/types.ts";
-import {
-  Denops,
+  type Denops,
   ensure,
   equal,
   fn,
   is,
-} from "https://deno.land/x/ddu_vim@v4.0.0/deps.ts";
+  lambda,
+  NoFilePreviewer,
+  PreviewContext,
+  Previewer,
+  TerminalPreviewer,
+} from "./deps.ts";
 import { Params } from "../ff_vim_popup.ts";
-import * as lambda from "https://deno.land/x/denops_std@v6.4.0/lambda/mod.ts";
 import { echomsgError, invokeVimFunction } from "./util.ts";
 
 type UserCallback = (denops: Denops, winId: number) => Promise<void>;
@@ -212,7 +210,7 @@ export class PreviewPopup extends Popup {
           previewer.syntax,
         );
       }
-      await fn.win_execute(denops, this.getWinId(), "filetype detect"); // TODO: tmp
+      await fn.win_execute(denops, this.getWinId(), "filetype detect");
     }
 
     // TODO: Highlight target line. etc.
