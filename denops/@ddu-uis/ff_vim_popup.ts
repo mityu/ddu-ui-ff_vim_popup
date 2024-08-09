@@ -39,12 +39,6 @@ const isActionParamCount1 = is.ObjectOf({
   count1: is.OptionalOf(is.Number),
 });
 
-const isExpandItemParams = is.ObjectOf({
-  mode: is.OptionalOf(is.LiteralOf("toggle")),
-  maxLevel: is.OptionalOf(is.Number),
-  isGrouped: is.OptionalOf(is.Boolean),
-});
-
 const isSign = is.ObjectOf({
   name: is.String,
   group: is.String,
@@ -563,12 +557,13 @@ export class Ui extends BaseUi<Params> {
           width: strBytesLength(itemTexts[this.#firstDisplayItem + index]),
         }];
       } else if (v.highlights) {
+        const prefixLen = strBytesLength(getTreePrefix(v));
         return v.highlights.map((v: ItemHighlight) => {
           return {
             name: v.name,
             hl_group: v.hl_group,
             line: linenr,
-            col: v.col,
+            col: v.col + prefixLen,
             width: v.width,
           };
         });
@@ -812,6 +807,12 @@ export class Ui extends BaseUi<Params> {
       if (this.#items.length === 0) {
         return ActionFlags.None;
       }
+
+      const isExpandItemParams = is.ObjectOf({
+        mode: is.OptionalOf(is.LiteralOf("toggle")),
+        maxLevel: is.OptionalOf(is.Number),
+        isGrouped: is.OptionalOf(is.Boolean),
+      });
 
       const item = this.#items[this.#cursorItem];
       const params = ensure(args.actionParams, isExpandItemParams);
