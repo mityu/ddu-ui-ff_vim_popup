@@ -1,10 +1,13 @@
 import {
   ActionFlags,
+  BaseActionParams,
   BaseUi,
   Context,
   DduItem,
   DduOptions,
   ItemHighlight,
+  PreviewContext,
+  Previewer,
   UiActions,
   UiOptions,
 } from "https://deno.land/x/ddu_vim@v4.0.0/types.ts";
@@ -22,7 +25,7 @@ import {
   PredicateType,
 } from "https://deno.land/x/unknownutil@v3.18.0/mod.ts";
 import { pick } from "https://deno.land/std@0.219.0/collections/mod.ts";
-import { Popup, PopupCreateArgs } from "./ff_vim_popup/popup.ts";
+import { Popup, PopupCreateArgs, PreviewPopup } from "./ff_vim_popup/popup.ts";
 import { invokeVimFunction, strBytesLength } from "./ff_vim_popup/util.ts";
 import {
   LineBuffer,
@@ -253,7 +256,7 @@ export class Ui extends BaseUi<Params> {
   #scrolloff: number = 0;
   #listerPopup: Popup = new Popup();
   #filterPopup: Popup = new Popup();
-  #previewPopup: Popup = new Popup();
+  #previewPopup: PreviewPopup = new PreviewPopup();
   #signCursorline?: Sign;
   #lineBuffer: LineBuffer = new LineBuffer();
   #lineBufferDisplay: LineBufferDisplay = new LineBufferDisplay();
@@ -852,6 +855,32 @@ export class Ui extends BaseUi<Params> {
       this.#selectedItems.clear();
       return Promise.resolve(ActionFlags.Redraw);
     },
+    previewItem: async (args: {
+      denops: Denops;
+      context: Context;
+      options: DduOptions;
+      uiParams: Params;
+      actionParams: unknown;
+      getPreviewer?: (
+        denops: Denops,
+        item: DduItem,
+        actionParams: BaseActionParams,
+        previewContext: PreviewContext,
+      ) => Promise<Previewer | undefined>;
+    }) => {
+      if (this.#items.length === 0) {
+        return ActionFlags.None;
+      }
+      const item = this.#items[this.#cursorItem];
+      return await this.#previewPopup.doPreview(
+        args.denops,
+        args.actionParams,
+        item,
+        args.getPreviewer,
+      );
+    },
+    // hoverItem {mode: "toggle" | "open" | "close"}
+    // This action may be named "previewPath".
     moveToInsertMode: async (args: { denops: Denops }) => {
       await invokeVimFunction(
         args.denops,

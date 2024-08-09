@@ -220,3 +220,8 @@ enddef
 def ReplaceTermcodes(s: string): string
   return s->substitute('<[^<>]\+>', '\=eval(printf(''"\%s"'', submatch(0)))', 'g')
 enddef
+
+export def Search(winId: number, pattern: string): number
+  return win_execute(winId, $'echo search({pattern->string()->string()}, "wn")')
+    ->matchstr('\d\+')->str2nr()
+enddef
