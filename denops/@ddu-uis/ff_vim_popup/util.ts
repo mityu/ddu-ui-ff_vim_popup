@@ -20,7 +20,11 @@ export function strBytesLength(s: string): number {
   return (new TextEncoder()).encode(s).length;
 }
 
-export function strBytesPart(s: string, begin: number, end?: number | undefined): string {
+export function strBytesPart(
+  s: string,
+  begin: number,
+  end?: number | undefined,
+): string {
   const bytes = new TextEncoder().encode(s).slice(begin, end);
   return new TextDecoder().decode(bytes);
 }

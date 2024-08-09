@@ -121,7 +121,7 @@ export class LineBufferHistory {
 
   push(v: LineBuffer) {
     this.#history.splice(this.#curIdx + 1);
-    this.#history.push(v.clone())
+    this.#history.push(v.clone());
     this.#curIdx = this.#history.length - 1;
   }
 
