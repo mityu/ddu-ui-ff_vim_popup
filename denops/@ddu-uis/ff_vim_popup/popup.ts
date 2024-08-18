@@ -143,7 +143,6 @@ export class PreviewPopup extends Popup {
       actionParams as BaseActionParams,
       previewContext,
     );
-    console.log(`previewer: ${JSON.stringify(previewer)}`);
     if (!previewer) {
       return ActionFlags.None;
     }
@@ -155,7 +154,6 @@ export class PreviewPopup extends Popup {
           previewer,
         );
       } else {
-        console.log("buffer previewer");
         return await this.#previewContentsBuffer(
           denops,
           previewer,
