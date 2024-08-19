@@ -1,11 +1,10 @@
 import {
+  ActionFlags,
   as,
   assert,
-  ActionFlags,
   BaseActionParams,
   batch,
   BufferPreviewer,
-  Context,
   DduItem,
   type Denops,
   ensure,
@@ -14,12 +13,11 @@ import {
   is,
   lambda,
   NoFilePreviewer,
+  PredicateType,
   PreviewContext,
   Previewer,
-  PredicateType,
   TerminalPreviewer,
 } from "./deps.ts";
-import { Params } from "../ff_vim_popup.ts";
 import { echomsgError, invokeVimFunction } from "./util.ts";
 
 const isPreviewParams = is.ObjectOf({
