@@ -1,6 +1,7 @@
 import {
   ActionFlags,
   BaseActionParams,
+  batch,
   BufferPreviewer,
   Context,
   DduItem,
@@ -37,6 +38,7 @@ export type PopupCreateArgs = {
 export class Popup {
   #winId?: number;
   #bufnr?: number;
+  #highlight?: string;
   #userCallback?: UserCallback;
   #callback?: lambda.Lambda;
 
@@ -54,8 +56,11 @@ export class Popup {
       return;
     }
     this.#userCallback = callback;
+    this.#highlight = opts.highlight;
     this.#callback = lambda.add(denops, async (winId: unknown) => {
       this.#winId = undefined;
+      this.#bufnr = undefined;
+      this.#highlight = undefined;
       if (this.#userCallback) {
         await this.#userCallback(denops, ensure(winId, is.Number));
       }
@@ -85,6 +90,16 @@ export class Popup {
 
   async setText(denops: Denops, text: string[]): Promise<void> {
     await denops.call("popup_settext", this.#winId!, text);
+  }
+
+  async setBuffer(denops: Denops, bufnr: number): Promise<void> {
+    await batch(denops, async (denops: Denops) => {
+      await denops.call("popup_setbuf", this.#winId!, bufnr);
+      await denops.call("popup_setoptions", this.#winId!, {
+        highlight: this.#highlight!,
+      });
+    });
+    this.#bufnr = bufnr;
   }
 
   getWinId(): number | undefined {
@@ -157,6 +172,7 @@ export class PreviewPopup extends Popup {
         return await this.#previewContentsBuffer(
           denops,
           previewer,
+          item,
         );
       }
     })();
@@ -175,6 +191,7 @@ export class PreviewPopup extends Popup {
     denops: Denops,
     previewer: BufferPreviewer | NoFilePreviewer,
     // actionParams: PreviewParams,
+    item: DduItem,
   ): Promise<ActionFlags> {
     if (
       previewer.kind === "nofile" && !previewer.contents?.length ||
@@ -183,9 +200,10 @@ export class PreviewPopup extends Popup {
       return ActionFlags.None;
     }
 
-    const previewBufnr = ensure(this.getBufnr(), is.Number);
+    const previewBuffer = await this.#getPreviewBuffer(denops, previewer, item);
     const [err, contents] = await this.#getContents(denops, previewer);
 
+    await this.setBuffer(denops, previewBuffer.bufnr);
     await this.setText(denops, contents);
 
     // const limit = actionParams.syntaxLimitChars ?? 400000;
@@ -194,7 +212,7 @@ export class PreviewPopup extends Popup {
       if (previewer.filetype) {
         await fn.setbufvar(
           denops,
-          previewBufnr,
+          previewBuffer.bufnr,
           "&filetype",
           previewer.filetype,
         );
@@ -203,12 +221,23 @@ export class PreviewPopup extends Popup {
       if (previewer.syntax) {
         await fn.setbufvar(
           denops,
-          previewBufnr,
+          previewBuffer.bufnr,
           "&syntax",
           previewer.syntax,
         );
       }
-      await fn.win_execute(denops, this.getWinId(), "filetype detect");
+
+      const filetype = ensure(
+        await fn.getbufvar(denops, previewBuffer.bufnr, "&filetype"),
+        is.String,
+      );
+      const syntax = ensure(
+        await fn.getbufvar(denops, previewBuffer.bufnr, "&syntax"),
+        is.String,
+      );
+      if (syntax.length === 0 && filetype.length === 0) {
+        await fn.win_execute(denops, this.getWinId(), "filetype detect");
+      }
     }
 
     // TODO: Highlight target line. etc.
@@ -216,7 +245,7 @@ export class PreviewPopup extends Popup {
     //   await this.#highlight(
     //     denops,
     //     previewer,
-    //     previewBufnr,
+    //     previewBuffer.bufnr,
     //     uiParams.highlights?.preview ?? "Search",
     //   );
     // }
@@ -230,6 +259,77 @@ export class PreviewPopup extends Popup {
   ): Promise<ActionFlags> {
     await this.setText(denops, ["Terminal previewer is not implemented yet."]);
     return ActionFlags.Persist;
+  }
+
+  async #getPreviewBuffer(
+    denops: Denops,
+    previewer: BufferPreviewer | NoFilePreviewer,
+    item: DduItem,
+  ): Promise<{ bufname: string; bufnr: number }> {
+    // Use existing buffer as the preview buffer.
+    if (
+      previewer.kind === "buffer" && previewer.expr && previewer.useExisting
+    ) {
+      if (is.String(previewer.expr)) {
+        return {
+          bufname: previewer.expr,
+          bufnr: await fn.bufnr(denops, previewer.expr),
+        };
+      } else {
+        return {
+          bufname: await fn.bufname(denops, previewer.expr),
+          bufnr: previewer.expr,
+        };
+      }
+    }
+
+    // Create new buffer for preview.
+    const getNewBufferName = async (): Promise<string> => {
+      const schema = "ddu-ff-vim-popup://";
+
+      if (previewer.kind === "buffer") {
+        if (previewer.expr) {
+          const bufname = await fn.bufname(denops, previewer.expr);
+          if (bufname.length === 0) {
+            return `${schema}no-name:${previewer.expr}`;
+          } else {
+            return `${schema}${bufname}`;
+          }
+        } else { // !previewer.expr
+          return `${schema}${previewer.path}`;
+        }
+      } else if (previewer.kind === "nofile") {
+        return `${schema}preview`;
+      } else {
+        return `${schema}${item.word}`;
+      }
+    };
+
+    const bufname = await getNewBufferName();
+    const bufnr = await fn.bufnr(denops, bufname);
+    if (bufnr !== -1) {
+      return {
+        bufname: bufname,
+        bufnr: bufnr,
+      };
+    }
+
+    const newBufnr = await fn.bufadd(denops, bufname);
+    await batch(denops, async (denops: Denops) => {
+      await fn.setbufvar(denops, newBufnr, "&buftype", "popup");
+      await fn.setbufvar(denops, newBufnr, "&swapfile", 0);
+      await fn.setbufvar(denops, newBufnr, "&backup", 0);
+      await fn.setbufvar(denops, newBufnr, "&undofile", 0);
+      await fn.setbufvar(denops, newBufnr, "&bufhidden", "wipe");
+      await fn.setbufvar(denops, newBufnr, "&modeline", 1);
+
+      await fn.bufload(denops, newBufnr);
+    });
+
+    return {
+      bufname: bufname,
+      bufnr: newBufnr,
+    };
   }
 
   async #getContents(
