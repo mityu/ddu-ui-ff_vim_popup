@@ -86,6 +86,7 @@ export type Params = {
     cursor: string;
     cursorline: string;
     selected: string;
+    preview: string;
   };
   displayTree: boolean;
   reversed: boolean;
@@ -872,6 +873,7 @@ export class Ui extends BaseUi<Params> {
       const item = this.#items[this.#cursorItem];
       return await this.#previewPopup.doPreview(
         args.denops,
+        args.uiParams,
         args.actionParams,
         item,
         args.getPreviewer,
@@ -1069,6 +1071,7 @@ export class Ui extends BaseUi<Params> {
         cursor: "Cursor",
         popup: "Normal",
         selected: "Statement",
+        preview: "Search",
       },
       displayTree: false,
       reversed: false,

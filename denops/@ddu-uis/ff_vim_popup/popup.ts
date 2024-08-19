@@ -13,12 +13,17 @@ import {
   is,
   lambda,
   NoFilePreviewer,
+  options,
   PredicateType,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
 } from "./deps.ts";
 import { echomsgError, invokeVimFunction } from "./util.ts";
+import { Highlighter } from "./highlighter.ts";
+import { Params } from "../ff_vim_popup.ts";
+
+const propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
 
 const isPreviewParams = is.ObjectOf({
   syntaxLimitChars: as.Optional(is.Number),
@@ -132,9 +137,11 @@ export class PreviewPopup extends Popup {
     core_width: is.Number,
     core_height: is.Number,
   });
+  #highlighter?: Highlighter;
 
   async doPreview(
     denops: Denops,
+    uiParams: Params,
     actionParams: unknown,
     item: DduItem,
     getPreviewer?: (
@@ -182,6 +189,7 @@ export class PreviewPopup extends Popup {
         return await this.#previewContentsBuffer(
           denops,
           previewer,
+          uiParams,
           actionParams,
           item,
         );
@@ -198,9 +206,11 @@ export class PreviewPopup extends Popup {
     return ActionFlags.Persist;
   }
 
+  // Handle buffer previewer and nofile previewer.
   async #previewContentsBuffer(
     denops: Denops,
     previewer: BufferPreviewer | NoFilePreviewer,
+    uiParams: Params,
     actionParams: PreviewParams,
     item: DduItem,
   ): Promise<ActionFlags> {
@@ -250,19 +260,19 @@ export class PreviewPopup extends Popup {
       }
     }
 
-    // TODO: Highlight target line. etc.
-    // if (!err) {
-    //   await this.#highlight(
-    //     denops,
-    //     previewer,
-    //     previewBuffer.bufnr,
-    //     uiParams.highlights?.preview ?? "Search",
-    //   );
-    // }
+    if (!err) {
+      await this.#highlight(
+        denops,
+        previewer,
+        previewBuffer.bufnr,
+        uiParams.highlights.preview,
+      );
+    }
 
     return ActionFlags.Persist;
   }
 
+  // Handle terminal previewer.
   async #previewContentsTerminal(
     denops: Denops,
     previewer: TerminalPreviewer,
@@ -271,6 +281,7 @@ export class PreviewPopup extends Popup {
     return ActionFlags.Persist;
   }
 
+  // Get bufname/bufnr for preview.  The buffer is created if necessary.
   async #getPreviewBuffer(
     denops: Denops,
     previewer: BufferPreviewer | NoFilePreviewer,
@@ -407,6 +418,50 @@ export class PreviewPopup extends Popup {
       })();
       await denops.call("popup_setoptions", this.getWinId(), {
         firstline: firstLine,
+      });
+    }
+  }
+
+  async #highlight(
+    denops: Denops,
+    previewer: BufferPreviewer | NoFilePreviewer,
+    bufnr: number,
+    hlName: string,
+  ) {
+    if (this.#highlighter) {
+      await this.#highlighter.clearAll(denops);
+      this.#highlighter = undefined;
+    }
+
+    this.#highlighter = new Highlighter(this.getWinId()!, bufnr);
+
+    if (previewer.lineNr) {
+      const len = await options.columns.get(denops);
+      await this.#highlighter.addProp(denops, {
+        propTypeName: propTypeName,
+        highlight: hlName,
+        line: previewer.lineNr,
+        col: 1,
+        len: len,
+      });
+    } else if (previewer.pattern) {
+      await this.#highlighter.addMatch(denops, {
+        pattern: previewer.pattern,
+        highlight: hlName,
+      });
+    }
+
+    if (previewer.highlights) {
+      await batch(denops, async (denops: Denops) => {
+        for (const hl of previewer.highlights!) {
+          await this.#highlighter!.addProp(denops, {
+            propTypeName: hl.name,
+            highlight: hl.hl_group,
+            line: hl.row,
+            col: hl.col,
+            len: hl.width,
+          });
+        }
       });
     }
   }
