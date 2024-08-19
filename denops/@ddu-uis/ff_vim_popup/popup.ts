@@ -1,4 +1,6 @@
 import {
+  as,
+  assert,
   ActionFlags,
   BaseActionParams,
   batch,
@@ -14,10 +16,17 @@ import {
   NoFilePreviewer,
   PreviewContext,
   Previewer,
+  PredicateType,
   TerminalPreviewer,
 } from "./deps.ts";
 import { Params } from "../ff_vim_popup.ts";
 import { echomsgError, invokeVimFunction } from "./util.ts";
+
+const isPreviewParams = is.ObjectOf({
+  syntaxLimitChars: as.Optional(is.Number),
+});
+
+type PreviewParams = PredicateType<typeof isPreviewParams>;
 
 type UserCallback = (denops: Denops, winId: number) => Promise<void>;
 
@@ -140,6 +149,9 @@ export class PreviewPopup extends Popup {
     if (this.isAlreadyPreviewed(item) || !getPreviewer) {
       return ActionFlags.None;
     }
+
+    assert(actionParams, isPreviewParams);
+
     const popupPos = ensure(
       await denops.call("popup_getpos", this.getWinId()),
       this.#isPopupPos,
@@ -172,6 +184,7 @@ export class PreviewPopup extends Popup {
         return await this.#previewContentsBuffer(
           denops,
           previewer,
+          actionParams,
           item,
         );
       }
@@ -190,7 +203,7 @@ export class PreviewPopup extends Popup {
   async #previewContentsBuffer(
     denops: Denops,
     previewer: BufferPreviewer | NoFilePreviewer,
-    // actionParams: PreviewParams,
+    actionParams: PreviewParams,
     item: DduItem,
   ): Promise<ActionFlags> {
     if (
@@ -206,8 +219,7 @@ export class PreviewPopup extends Popup {
     await this.setBuffer(denops, previewBuffer.bufnr);
     await this.setText(denops, contents);
 
-    // const limit = actionParams.syntaxLimitChars ?? 400000;
-    const limit = 400000;
+    const limit = actionParams.syntaxLimitChars ?? 400000;
     if (!err && contents.join("\n").length < limit) {
       if (previewer.filetype) {
         await fn.setbufvar(
