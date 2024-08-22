@@ -17,6 +17,7 @@ import {
   PreviewContext,
   Previewer,
   TerminalPreviewer,
+  vimFn,
 } from "../deps.ts";
 import { invokeVimFunction } from "../util.ts";
 import { Highlighter } from "../highlighter.ts";
@@ -30,7 +31,8 @@ const isPreviewParams = is.ObjectOf({
 type PreviewParams = PredicateType<typeof isPreviewParams>;
 
 export class PreviewPopup extends Popup {
-  static readonly propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
+  static readonly #propTypeName =
+    "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
   static readonly #isPopupPos = is.ObjectOf({
     core_col: is.Number,
     core_line: is.Number,
@@ -78,7 +80,7 @@ export class PreviewPopup extends Popup {
     assert(actionParams, isPreviewParams);
 
     const popupPos = ensure(
-      await denops.call("popup_getpos", this.getWinId()),
+      await vimFn.popup_getpos(denops, this.getWinId()),
       PreviewPopup.#isPopupPos,
     );
     const previewContext: PreviewContext = {
@@ -370,7 +372,7 @@ export class PreviewPopup extends Popup {
           return 1;
         }
       })();
-      await denops.call("popup_setoptions", this.getWinId(), {
+      await vimFn.popup_setoptions(denops, this.getWinId()!, {
         firstline: firstLine,
       });
     }
@@ -392,7 +394,7 @@ export class PreviewPopup extends Popup {
     if (previewer.lineNr) {
       const len = await options.columns.get(denops);
       await this.#highlighter.addProp(denops, {
-        propTypeName: PreviewPopup.propTypeName,
+        propTypeName: PreviewPopup.#propTypeName,
         highlight: hlName,
         line: previewer.lineNr,
         col: 1,

@@ -7,6 +7,7 @@ import {
   fn,
   is,
   pick,
+  vimFn,
 } from "../deps.ts";
 import { Popup, type PopupCreateArgs, type UserCallback } from "./base.ts";
 import {
@@ -18,7 +19,7 @@ import { isActionParamCount1, Params } from "../../ff_vim_popup.ts";
 import { invokeVimFunction } from "../util.ts";
 
 export class FilterPopup extends Popup {
-  static readonly cursorPropTypeName = "ddu-ui-ff_vim_popup-prop-type-cursor";
+  static readonly #cursorPropTypeName = "ddu-ui-ff_vim_popup-prop-type-cursor";
 
   #keyhandlerId?: string;
   #lineBuffer: LineBuffer = new LineBuffer();
@@ -81,7 +82,7 @@ export class FilterPopup extends Popup {
       "ddu_ui_name",
       uiName,
     );
-    await denops.call("prop_type_add", FilterPopup.cursorPropTypeName, {
+    await vimFn.prop_type_add(denops, FilterPopup.#cursorPropTypeName, {
       highlight: uiParams.highlights.cursor,
       bufnr: this.getBufnr(),
     });
@@ -100,12 +101,8 @@ export class FilterPopup extends Popup {
     await this.#lineBufferDisplay.updateDisplay(denops, this.#lineBuffer);
     if (mode === "n") {
       await batch(denops, async (denops) => {
-        await denops.call(
-          "popup_settext",
-          this.getWinId(),
-          this.#lineBufferDisplay.getDisplay().text,
-        );
-        await denops.call("prop_clear", 1, 1, {
+        await this.setText(denops, this.#lineBufferDisplay.getDisplay().text);
+        await vimFn.prop_clear(denops, 1, 1, {
           bufnr: this.getBufnr(),
         });
       });
@@ -114,21 +111,17 @@ export class FilterPopup extends Popup {
       const byteColumn = display.byteColumn + 1; // Make 1-indexed.
       const bufnr = this.getBufnr();
       await batch(denops, async (denops) => {
-        await denops.call(
-          "popup_settext",
-          this.getWinId(),
-          display.text,
-        );
-        await denops.call("prop_clear", 1, 1, { bufnr: bufnr });
+        await this.setText(denops, display.text);
+        await vimFn.prop_clear(denops, 1, 1, { bufnr: bufnr });
         if (display.charColumn < display.text.length) {
-          await denops.call("prop_add", 1, byteColumn, {
-            type: FilterPopup.cursorPropTypeName,
+          await vimFn.prop_add(denops, 1, byteColumn, {
+            type: FilterPopup.#cursorPropTypeName,
             length: 1,
             bufnr: bufnr,
           });
         } else {
-          await denops.call("prop_add", 1, 0, {
-            type: FilterPopup.cursorPropTypeName,
+          await vimFn.prop_add(denops, 1, 0, {
+            type: FilterPopup.#cursorPropTypeName,
             text: " ",
             bufnr: bufnr,
           });

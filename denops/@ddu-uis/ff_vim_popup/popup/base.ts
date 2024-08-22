@@ -1,4 +1,4 @@
-import { batch, type Denops, ensure, fn, is, lambda } from "../deps.ts";
+import { batch, type Denops, ensure, fn, is, lambda, vimFn } from "../deps.ts";
 import { echomsgError } from "../util.ts";
 
 export type UserCallback = (denops: Denops, winId: number) => Promise<void>;
@@ -72,19 +72,19 @@ export class Popup {
 
   async close(denops: Denops): Promise<void> {
     if (this.exists()) {
-      await denops.call("popup_close", this.#winId!);
+      await vimFn.popup_close(denops, this.#winId);
     }
   }
 
-  async setText(denops: Denops, text: string[]): Promise<void> {
-    await denops.call("popup_settext", this.#winId!, text);
+  async setText(denops: Denops, text: string | string[]): Promise<void> {
+    await vimFn.popup_settext(denops, this.#winId, text);
   }
 
   async setBuffer(denops: Denops, bufnr: number): Promise<void> {
     await batch(denops, async (denops: Denops) => {
       await denops.call("popup_setbuf", this.#winId!, bufnr);
-      await denops.call("popup_setoptions", this.#winId!, {
-        highlight: this.#highlight!,
+      await vimFn.popup_setoptions(denops, this.#winId!, {
+        highlight: this.#highlight,
       });
     });
     this.#bufnr = bufnr;
