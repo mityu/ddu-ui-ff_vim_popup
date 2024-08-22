@@ -21,12 +21,9 @@ import {
   PreviewContext,
   Previewer,
   TerminalPreviewer,
-  vars,
-  vimFn,
 } from "./deps.ts";
 import { echomsgError, invokeVimFunction, strBytesLength } from "./util.ts";
 import { Highlighter } from "./highlighter.ts";
-import { CommandOptions, Executor } from "./executor.ts";
 import { Params } from "../ff_vim_popup.ts";
 
 const propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
@@ -144,12 +141,13 @@ export class PreviewPopup extends Popup {
   });
   #previewedTarget?: DduItem;
   #highlighter?: Highlighter;
-  #terminalPreviewDrawer: TerminalPreviewDrawer;
-  #terminalPreviewExecutor?: Executor;
+  #terminalPreviewAbort?: (denops: Denops) => Promise<void>;
 
-  constructor() {
-    super();
-    this.#terminalPreviewDrawer = new TerminalPreviewDrawer(this);
+  override async close(denops: Denops): Promise<void> {
+    if (this.#terminalPreviewAbort) {
+      await this.#terminalPreviewAbort(denops);
+    }
+    await super.close(denops);
   }
 
   async doPreview(
@@ -169,9 +167,9 @@ export class PreviewPopup extends Popup {
     }
 
     // Kill terminal previewer if exists.
-    if (this.#terminalPreviewExecutor) {
-      await this.#terminalPreviewExecutor.abort(denops);
-      this.#terminalPreviewExecutor = undefined;
+    if (this.#terminalPreviewAbort) {
+      await this.#terminalPreviewAbort(denops);
+      this.#terminalPreviewAbort = undefined;
     }
 
     assert(actionParams, isPreviewParams);
@@ -204,6 +202,7 @@ export class PreviewPopup extends Popup {
           denops,
           previewer,
           item,
+          previewContext,
         );
       } else {
         return await this.#previewContentsBuffer(
@@ -301,48 +300,34 @@ export class PreviewPopup extends Popup {
     denops: Denops,
     previewer: TerminalPreviewer,
     item: DduItem,
+    previewContext: PreviewContext,
   ): Promise<ActionFlags> {
     if (this.#highlighter) {
       await this.#highlighter.clearAll(denops);
       this.#highlighter = undefined;
     }
 
-    this.#terminalPreviewDrawer.clear();
-    await this.#terminalPreviewDrawer.prepare(denops);
-
     const previewBuffer = await this.#getPreviewBuffer(denops, previewer, item);
     await this.setBuffer(denops, previewBuffer.bufnr);
 
-    this.#highlighter = new Highlighter(this.getWinId()!, previewBuffer.bufnr);
+    const termBufnr = await denops.call(
+      "ddu#ui#ff_vim_popup#term_previewer#DoPreview",
+      this.getWinId()!,
+      previewer.cmds,
+      {
+        cwd: previewer.cwd,
+        term_rows: previewContext.height,
+        term_cols: previewContext.width,
+      },
+    );
 
-    const opts: CommandOptions = {
-      out_cb: async (msg: string) => {
-        this.#terminalPreviewDrawer.addStdout(msg);
-        await this.#terminalPreviewDrawer.showWithoutDecorations(
-          denops,
-          this.#highlighter!,
-        );
-      },
-      err_cb: async (msg: string) => {
-        this.#terminalPreviewDrawer.addStderr(msg);
-        await this.#terminalPreviewDrawer.showWithoutDecorations(
-          denops,
-          this.#highlighter!,
-        );
-      },
-      close_cb: async () => {
-        await this.#terminalPreviewDrawer.showWithDecorations(
-          denops,
-          this.#highlighter!,
-        );
-        this.#terminalPreviewExecutor = undefined;
-      },
+    this.#terminalPreviewAbort = async (denops: Denops) => {
+      await invokeVimFunction(
+        denops,
+        "ddu#ui#ff_vim_popup#term_previewer#StopPreview",
+        termBufnr,
+      );
     };
-    if (previewer.cwd) {
-      opts.cwd = previewer.cwd;
-    }
-    this.#terminalPreviewExecutor = new Executor(previewer.cmds, opts);
-    await this.#terminalPreviewExecutor.spawn(denops);
 
     return ActionFlags.Persist;
   }
@@ -713,141 +698,6 @@ class DecoratedBuffer {
     } else {
       return c.map((v) => v.toString(16).padStart(2, "0")).join("");
     }
-  }
-}
-
-class TerminalPreviewDrawer {
-  static readonly propTypeName =
-    "ddu-ui-ff-vim-popup-terminal-previewer-drawer-stderr-region";
-  #popup: PreviewPopup;
-  #stdout: DecoratedBuffer;
-  #stderr: DecoratedBuffer;
-
-  constructor(popup: PreviewPopup) {
-    this.#popup = popup;
-    this.#stdout = new DecoratedBuffer();
-    this.#stderr = new DecoratedBuffer();
-  }
-
-  clear() {
-    this.#stdout.clear();
-    this.#stderr.clear();
-  }
-
-  async prepare(denops: Denops) {
-    const colors = await this.#getTerminalAnsiColors(denops);
-    this.#stdout.setTerminalAnsiColors(colors);
-    this.#stderr.setTerminalAnsiColors(colors);
-  }
-
-  addStdout(msg: string) {
-    msg.split(/\r?\n/).forEach((line) => this.#stdout.addLine(line));
-  }
-
-  addStderr(msg: string) {
-    msg.split(/\r?\n/).forEach((line) => this.#stderr.addLine(line));
-  }
-
-  async showWithoutDecorations(
-    denops: Denops,
-    highlighter: Highlighter,
-  ): Promise<void> {
-    await this.#popup.setText(denops, this.#getLines());
-    if (this.#stderr.lines.length !== 0) {
-      await batch(denops, async (denops) => {
-        const lens = this.#stderr.lines.map((line) => strBytesLength(line));
-        for (const [i, len] of itertools.enumerate(lens)) {
-          await highlighter.addProp(denops, {
-            propTypeName: TerminalPreviewDrawer.propTypeName,
-            highlight: "Error",
-            line: i + 1,
-            col: 0,
-            len: len,
-          });
-        }
-      });
-    }
-  }
-
-  async showWithDecorations(
-    denops: Denops,
-    highlighter: Highlighter,
-  ): Promise<void> {
-    await this.showWithoutDecorations(denops, highlighter);
-
-    if (this.#stdout.highlights.size !== 0) {
-      await vimFn.hlset(denops, Array.from(this.#stdout.highlights.values()));
-    }
-
-    if (this.#stderr.lines.length !== 0) {
-      // Show stderr and stdout.
-      if (this.#stderr.highlights.size !== 0) {
-        await vimFn.hlset(denops, Array.from(this.#stderr.highlights.values()));
-      }
-
-      const lineOffset = this.#stderr.lines.length + 1;
-      const stdoutDecos = this.#stdout.decorations.map((deco) => {
-        return {
-          ...deco,
-          line: deco.line + lineOffset,
-        };
-      });
-
-      const decos = itertools.chain(this.#stderr.decorations, stdoutDecos);
-
-      for (const deco of decos) {
-        await highlighter.addProp(denops, {
-          ...deco,
-          propTypeName: TerminalPreviewDrawer.propTypeName,
-        });
-      }
-    } else {
-      // Show only stdout
-      for (const deco of this.#stdout.decorations) {
-        // NOTE: Using batch() here doesn't work well because prop_type_get
-        // after prop_type_add doesn't return proper result if batched.
-        await highlighter.addProp(denops, {
-          ...deco,
-          propTypeName: `prop-type-${deco.highlight}`,
-        });
-      }
-    }
-  }
-
-  #getLines(): string[] {
-    if (this.#stderr.lines.length === 0) {
-      return this.#stdout.lines;
-    } else {
-      return [...this.#stderr.lines, "", ...this.#stdout.lines];
-    }
-  }
-
-  async #getTerminalAnsiColors(denops: Denops): Promise<string[]> {
-    const colors = ensure(
-      await vars.g.get(denops, "terminal_ansi_colors", undefined),
-      as.Optional(is.ArrayOf(is.String)),
-    );
-    if (colors !== undefined && colors.length !== 0) {
-      return colors;
-    }
-    return [
-      "black",
-      "darkred",
-      "darkgreen",
-      "brown",
-      "darkblue",
-      "darkmagenta",
-      "darkcyan",
-      "lightgrey",
-      "darkgrey",
-      "red",
-      "green",
-      "yellow",
-      "blue",
-      "magenta",
-      "cyan",
-      "white",
-    ];
   }
 }
 
