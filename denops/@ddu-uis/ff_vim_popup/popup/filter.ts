@@ -232,7 +232,7 @@ export class FilterPopup extends Popup {
     args: { denops: Denops; actionParams: unknown },
   ): Promise<ActionFlags> {
     const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-    await this.#lineBuffer.deleteByRegex(args.denops, ".\\%#", count1);
+    await this.#lineBuffer.deleteByRegex(args.denops, String.raw`.\%#`, count1);
     await this.#updatePrompt(args.denops);
     await this.#notifyPromptChanges(args.denops);
     return ActionFlags.Persist;
@@ -244,7 +244,7 @@ export class FilterPopup extends Popup {
     const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
     await this.#lineBuffer.deleteByRegex(
       args.denops,
-      "\\s*\\w\\+\\%#",
+      String.raw`\w\+\s*\%#`,
       count1,
     );
     await this.#updatePrompt(args.denops);
