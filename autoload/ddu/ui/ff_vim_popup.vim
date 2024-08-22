@@ -1,11 +1,12 @@
 vim9script
 
-import './ff_vim_popup/internal.vim' as Internal
+import './ff_vim_popup/keyhandler.vim' as Keyhandler
+import './ff_vim_popup/util.vim' as Util
 
 def CheckMappableState(silent: bool = false): bool
-  if Internal.UiState.configuringInstance == null_object
+  if !Keyhandler.CanConfig()
     if !silent
-      Internal.EchomsgError(
+      Util.EchomsgError(
         'Mapping functions are must be called while ddu-ui-ff_vim_popup-open-pre event.')
     endif
     return false
@@ -17,26 +18,26 @@ export def MapKey(modes: string, lhs: string, rhs: string)
   if !CheckMappableState()
     return
   endif
-  Internal.UiState.configuringInstance.MapKey(modes, lhs, rhs)
+  Keyhandler.MapKey(modes, lhs, rhs)
 enddef
 
 export def MapAction(modes: string, lhs: string, action: string, params: dict<any> = {})
   if !CheckMappableState()
     return
   endif
-  Internal.UiState.configuringInstance.MapAction(modes, lhs, action, params)
+  Keyhandler.MapAction(modes, lhs, action, params)
 enddef
 
-export def MapFunction(modes: string, lhs: string, Fn: Internal.MapActionFn)
+export def MapFunction(modes: string, lhs: string, Fn: Keyhandler.MapActionFn)
   if !CheckMappableState()
     return
   endif
-  Internal.UiState.configuringInstance.MapFunction(modes, lhs, Fn)
+  Keyhandler.MapFunction(modes, lhs, Fn)
 enddef
 
 export def Unmap(modes: string, lhs: string)
   if !CheckMappableState()
     return
   endif
-  Internal.UiState.configuringInstance.Unmap(modes, lhs)
+  Keyhandler.Unmap(modes, lhs)
 enddef

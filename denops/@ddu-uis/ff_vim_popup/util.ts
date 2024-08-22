@@ -5,13 +5,13 @@ export async function invokeVimFunction(
   fn: string,
   ...args: unknown[]
 ) {
-  await denops.call("ddu#ui#ff_vim_popup#internal#Invoke", fn, args);
+  await denops.call("ddu#ui#ff_vim_popup#util#Invoke", fn, args);
 }
 
 export async function echomsgError(denops: Denops, msg: string) {
   await invokeVimFunction(
     denops,
-    "ddu#ui#ff_vim_popup#internal#EchomsgError",
+    "ddu#ui#ff_vim_popup#util#EchomsgError",
     msg,
   );
 }

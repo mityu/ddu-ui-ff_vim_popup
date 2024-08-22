@@ -1,47 +1,30 @@
 import {
   ActionFlags,
   as,
-  assert,
   BaseActionParams,
   BaseUi,
   batch,
   Context,
-  DduItem,
-  DduOptions,
-  Denops,
+  type DduItem,
+  type DduOptions,
+  type Denops,
   ensure,
-  equal,
-  fn,
   is,
-  ItemHighlight,
-  pick,
-  PredicateType,
+  type PredicateType,
   PreviewContext,
   Previewer,
   UiActions,
   UiOptions,
   vars,
 } from "./ff_vim_popup/deps.ts";
-import { Popup, PopupCreateArgs, PreviewPopup } from "./ff_vim_popup/popup.ts";
-import { invokeVimFunction, strBytesLength } from "./ff_vim_popup/util.ts";
-import {
-  LineBuffer,
-  LineBufferDisplay,
-  LineBufferHistory,
-} from "./ff_vim_popup/linebuffer.ts";
+import { type PopupCreateArgs } from "./ff_vim_popup/popup/base.ts";
+import { FilterPopup } from "./ff_vim_popup/popup/filter.ts";
+import { ListerPopup } from "./ff_vim_popup/popup/lister.ts";
+import { PreviewPopup } from "./ff_vim_popup/popup/preview.ts";
 
-const propTypeName = "ddu-ui-ff_vim_popup-prop-type-cursor";
-
-const isActionParamCount1 = is.ObjectOf({
+export const isActionParamCount1 = is.ObjectOf({
   count1: as.Optional(is.Number),
 });
-
-const isSign = is.ObjectOf({
-  name: is.String,
-  group: is.String,
-  id: as.Optional(is.Number),
-});
-type Sign = PredicateType<typeof isSign>;
 
 type DoActionParams = {
   name?: string;
@@ -95,67 +78,6 @@ export type Params = {
   handleCtrlC: boolean;
 };
 
-function moveCursorline(
-  cursorItem: number,
-  firstDisplayItem: number,
-  delta: number,
-  context: {
-    itemCount: number;
-    scrolloff: number;
-    displayItemCount: number;
-  },
-): { cursorItem: number; firstDisplayItem: number } {
-  if (context.displayItemCount === 0) {
-    return {
-      cursorItem: 0,
-      firstDisplayItem: 0,
-    };
-  } else if (delta > 0) {
-    const newCursorItem = cursorItem + delta;
-    if (newCursorItem >= context.itemCount) {
-      const newDelta = newCursorItem - context.itemCount;
-      return moveCursorline(0, 0, newDelta, context);
-    } else if (
-      newCursorItem + context.scrolloff <=
-        firstDisplayItem + context.displayItemCount - 1
-    ) {
-      return {
-        cursorItem: cursorItem + delta,
-        firstDisplayItem: firstDisplayItem,
-      };
-    } else {
-      const newCursorItem = cursorItem + delta;
-      return {
-        cursorItem: newCursorItem,
-        firstDisplayItem: Math.min(
-          newCursorItem + context.scrolloff - (context.displayItemCount - 1),
-          context.itemCount - context.displayItemCount,
-        ),
-      };
-    }
-  } else {
-    const newCursorItem = cursorItem + delta;
-    if (newCursorItem < 0) {
-      return moveCursorline(
-        context.itemCount - 1,
-        context.itemCount - context.displayItemCount,
-        newCursorItem + 1,
-        context,
-      );
-    } else if (newCursorItem - context.scrolloff >= firstDisplayItem) {
-      return {
-        cursorItem: newCursorItem,
-        firstDisplayItem: firstDisplayItem,
-      };
-    } else {
-      return {
-        cursorItem: newCursorItem,
-        firstDisplayItem: Math.max(newCursorItem - context.scrolloff, 0),
-      };
-    }
-  }
-}
-
 async function calcLayout(
   denops: Denops,
   uiParams: Params,
@@ -180,7 +102,7 @@ async function calcLayout(
   })();
 
   const previewBorder = normalizeBorder(uiParams.previewBorder.mask);
-  const previewArgs: PopupCreateArgs = {
+  const previewArgs = {
     line: bounds.preview.line + 1,
     col: bounds.preview.col + 1,
     minwidth: bounds.preview.width - 2,
@@ -192,10 +114,10 @@ async function calcLayout(
     borderchars: uiParams.previewBorder.chars,
     wrap: false,
     scrollbar: false,
-  };
+  } satisfies PopupCreateArgs;
 
   const filterBorder = normalizeBorder(uiParams.filterBorder.mask);
-  const filterArgs: PopupCreateArgs = {
+  const filterArgs = {
     line: bounds.finder.line +
       (isFilterTop
         ? filterBorder[0]
@@ -210,11 +132,11 @@ async function calcLayout(
     borderchars: uiParams.filterBorder.chars,
     wrap: false,
     scrollbar: false,
-  };
+  } satisfies PopupCreateArgs;
 
   const filterHeight = 1 + filterBorder[0] + filterBorder[2];
   const listerBorder = normalizeBorder(uiParams.listerBorder.mask);
-  const listerArgs: PopupCreateArgs = {
+  const listerArgs = {
     line: bounds.finder.line + listerBorder[0] +
       (isFilterTop ? filterHeight : 0),
     col: bounds.finder.col + listerBorder[3],
@@ -229,7 +151,7 @@ async function calcLayout(
     borderchars: uiParams.listerBorder.chars,
     wrap: false,
     scrollbar: false,
-  };
+  } satisfies PopupCreateArgs;
 
   return {
     lister: listerArgs,
@@ -239,27 +161,16 @@ async function calcLayout(
 }
 
 export class Ui extends BaseUi<Params> {
-  #items: DduItem[] = [];
-  #selectedItems: Set<number> = new Set();
-  #maxDisplayItemLength: number = 0;
-  #firstDisplayItem: number = 0;
-  #cursorItem: number = 0;
-  #uiStateId?: number;
-  #scrolloff: number = 0;
-  #listerPopup: Popup = new Popup();
-  #filterPopup: Popup = new Popup();
+  #sessionId?: string;
+  #listerPopup: ListerPopup = new ListerPopup();
+  #filterPopup: FilterPopup = new FilterPopup();
   #previewPopup: PreviewPopup = new PreviewPopup();
-  #signCursorline?: Sign;
-  #lineBuffer: LineBuffer = new LineBuffer();
-  #lineBufferDisplay: LineBufferDisplay = new LineBufferDisplay();
-  #lineBufferHistory: LineBufferHistory = new LineBufferHistory();
-  #uiName?: string;
 
   override async onInit(
     args: { denops: Denops; uiParams: Params },
   ): Promise<void> {
-    this.#scrolloff = await vars.go.get(args.denops, "scrolloff");
-    this.#lineBufferHistory.push(this.#lineBuffer); // Push the initial state to the history.
+    await this.#listerPopup.onInit(args.denops);
+    this.#filterPopup.onInit();
   }
 
   override async onBeforeAction(): Promise<void> {
@@ -269,90 +180,25 @@ export class Ui extends BaseUi<Params> {
   }
 
   override refreshItems(args: {
-    denops: Denops;
     items: DduItem[];
   }): Promise<void> {
-    this.#items = args.items;
-    this.#selectedItems.clear();
-    this.#firstDisplayItem = 0;
-    this.#cursorItem = 0;
-
+    this.#listerPopup.refreshItems(args.items);
     return Promise.resolve();
   }
 
-  // This function is copied from
-  // https://github.com/Shougo/ddu-ui-ff/blob/60f642fe555ded2cc65fd5d903fd7d119ef86766/denops/%40ddu-uis/ff.ts#L753-L784
-  // which distributed under the MIT License.
   override collapseItem(args: {
     item: DduItem;
   }) {
-    // NOTE: treePath may be list.  So it must be compared by JSON.
-    const startIndex = this.#items.findIndex(
-      (item: DduItem) =>
-        equal(item.treePath, args.item.treePath) &&
-        item.__sourceIndex === args.item.__sourceIndex,
-    );
-    if (startIndex < 0) {
-      return Promise.resolve(0);
-    }
-
-    const endIndex = this.#items.slice(startIndex + 1).findIndex(
-      (item: DduItem) => item.__level <= args.item.__level,
-    );
-
-    const prevLength = this.#items.length;
-    if (endIndex < 0) {
-      this.#items = this.#items.slice(0, startIndex + 1);
-    } else {
-      this.#items = this.#items.slice(0, startIndex + 1).concat(
-        this.#items.slice(startIndex + endIndex + 1),
-      );
-    }
-
-    this.#items[startIndex] = args.item;
-
-    this.#selectedItems.clear();
-
-    return Promise.resolve(prevLength - this.#items.length);
+    return this.#listerPopup.collapseItem(args.item);
   }
 
-  // This function is copied from
-  // https://github.com/Shougo/ddu-ui-ff/blob/60f642fe555ded2cc65fd5d903fd7d119ef86766/denops/%40ddu-uis/ff.ts#L717-L751
-  // which distributed under the MIT License.
   override expandItem(args: {
     uiParams: Params;
     parent: DduItem;
     children: DduItem[];
     isGrouped: boolean;
   }) {
-    // NOTE: treePath may be list.  So it must be compared by JSON.
-    const index = this.#items.findIndex(
-      (item: DduItem) =>
-        equal(item.treePath, args.parent.treePath) &&
-        item.__sourceIndex === args.parent.__sourceIndex,
-    );
-
-    const insertItems = args.children;
-
-    const prevLength = this.#items.length;
-    if (index >= 0) {
-      if (args.isGrouped) {
-        // Replace parent
-        this.#items[index] = insertItems[0];
-      } else {
-        this.#items = this.#items.slice(0, index + 1).concat(insertItems)
-          .concat(
-            this.#items.slice(index + 1),
-          );
-        this.#items[index] = args.parent;
-      }
-    } else {
-      this.#items = this.#items.concat(insertItems);
-    }
-
-    this.#selectedItems.clear();
-
-    return Promise.resolve(prevLength - this.#items.length);
+    return this.#listerPopup.expandItem(args);
   }
 
   override async searchItem(args: {
@@ -360,22 +206,7 @@ export class Ui extends BaseUi<Params> {
     item: DduItem;
     uiParams: Params;
   }) {
-    const idx = this.#items.findIndex((item) => equal(item, args.item));
-
-    if (idx > 0) {
-      const { cursorItem, firstDisplayItem } = moveCursorline(0, 0, idx, {
-        itemCount: this.#items.length,
-        scrolloff: this.#scrolloff,
-        displayItemCount: Math.min(
-          this.#maxDisplayItemLength,
-          this.#items.length,
-        ),
-      });
-      this.#cursorItem = cursorItem;
-      this.#firstDisplayItem = firstDisplayItem;
-      await this.#updateDisplayItems(args.denops, args.uiParams);
-      await this.#updateCursorline(args.denops, args.uiParams.reversed);
-    }
+    await this.#listerPopup.searchItem(args);
   }
 
   override async redraw(args: {
@@ -394,9 +225,7 @@ export class Ui extends BaseUi<Params> {
       await this.#openWindows(args);
     }
 
-    // TODO: Set preview contents, etc.
-    await this.#updateDisplayItems(args.denops, args.uiParams);
-    await this.#updateCursorline(args.denops, args.uiParams.reversed);
+    await this.#listerPopup.redraw(args.denops, args.uiParams);
   }
 
   override async quit(args: { denops: Denops }) {
@@ -421,352 +250,52 @@ export class Ui extends BaseUi<Params> {
     uiParams: Params;
   }): Promise<void> {
     const layout = await calcLayout(args.denops, args.uiParams);
-    this.#maxDisplayItemLength = layout.lister.maxheight;
-    this.#lineBufferDisplay.setMaxDisplayWidth(layout.filter.maxwidth);
-    await this.#lineBufferDisplay.setPromptText(
-      args.denops,
-      args.uiParams.prompt,
-    );
+    const uiName = args.options.name ?? "default";
 
-    this.#uiStateId = await args.denops.call(
-      "ddu#ui#ff_vim_popup#internal#CreateNewUiState",
-      pick(args.uiParams, ["hideCursor"]),
-    ) as number;
+    this.#sessionId = crypto.randomUUID();
 
-    this.#signCursorline = {
-      name: `ddu-ui-ff_vim_popup-cursorline-${this.#uiStateId}`,
-      group: "PopUpDduUiFFVimPopupCursorline",
-    };
-
-    await this.#previewPopup.open(args.denops, layout.preview);
-    await this.#filterPopup.open(
+    await this.#previewPopup.openWindow(args.denops, layout.preview);
+    await this.#filterPopup.openWindow(
       args.denops,
       layout.filter,
       async (denops: Denops, _: number) =>
         // This may should be "quit" action of ddu.vim
         await this.#onClose(denops),
+      args.uiParams,
+      uiName,
     );
-    await this.#listerPopup.open(args.denops, layout.lister);
-
-    await invokeVimFunction(
+    await this.#listerPopup.openWindow(
       args.denops,
-      "ddu#ui#ff_vim_popup#internal#SetupKeyHandling",
-      this.#uiStateId,
-      this.#filterPopup.getWinId(),
+      layout.lister,
+      args.uiParams,
+      this.#sessionId,
     );
-
-    const uiName = args.options.name ?? "default";
-    this.#uiName = uiName;
-    await batch(args.denops, async (denops) => {
-      await fn.setbufvar(
-        denops,
-        this.#filterPopup.getBufnr()!,
-        "ddu_ui_name",
-        uiName,
-      );
-      await fn.setwinvar(
-        denops,
-        this.#listerPopup.getWinId()!,
-        "&signcolumn",
-        "yes",
-      );
-      await fn.sign_define(denops, this.#signCursorline!.name, {
-        linehl: args.uiParams.highlights.cursorline,
-        text: ">",
-      });
-
-      await denops.call("prop_type_add", propTypeName, {
-        highlight: args.uiParams.highlights.cursor,
-        bufnr: this.#filterPopup.getBufnr(),
-      });
-    });
-    await this.#updatePrompt(args.denops);
   }
 
   async #onClose(denops: Denops) {
-    if (!this.#uiStateId) {
+    if (!this.#sessionId) {
       // Closing process is already done.
       return;
     }
-
-    const uiStateId = this.#uiStateId;
-    const signName = this.#signCursorline?.name;
-
-    this.#uiStateId = undefined;
-    this.#signCursorline = undefined;
-    this.#selectedItems.clear();
-    this.#lineBuffer = new LineBuffer(); // Clear inputs.
-    this.#lineBufferDisplay = new LineBufferDisplay();
-    this.#lineBufferHistory = new LineBufferHistory();
+    this.#sessionId = undefined;
 
     await batch(denops, async (denops) => {
+      await this.#filterPopup.onClose(denops);
+      await this.#listerPopup.onClose(denops);
       await this.#listerPopup.close(denops);
       await this.#filterPopup.close(denops);
       await this.#previewPopup.close(denops);
-
-      if (uiStateId) {
-        await invokeVimFunction(
-          denops,
-          "ddu#ui#ff_vim_popup#internal#RemoveUiState",
-          uiStateId,
-        );
-      }
-
-      if (signName) {
-        await fn.sign_undefine(denops, signName);
-      }
     });
-  }
-
-  async #updateDisplayItems(
-    denops: Denops,
-    uiParams: Params,
-  ) {
-    const getTreePrefix = (item: DduItem) => {
-      if (uiParams.displayTree) {
-        const label = !item.isTree ? "  " : item.__expanded ? "- " : "+ ";
-        return " ".repeat(item.__level) + label;
-      } else {
-        return "";
-      }
-    };
-    const displayItems = (() => {
-      const items = this.#items.slice(
-        this.#firstDisplayItem,
-        this.#firstDisplayItem + this.#maxDisplayItemLength,
-      );
-      if (uiParams.reversed) {
-        return items.reverse();
-      } else {
-        return items;
-      }
-    })();
-    const itemTexts = displayItems.map((v: DduItem): string => {
-      return getTreePrefix(v) + (v.display ?? v.word);
-    });
-    const itemHighlights = displayItems.flatMap((v: DduItem, index: number) => {
-      const linenr = index + 1;
-      if (this.#selectedItems.has(this.#firstDisplayItem + index)) {
-        return [{
-          name: "ddu-ui-selected",
-          hl_group: uiParams.highlights.selected,
-          line: linenr,
-          col: 1,
-          width: strBytesLength(itemTexts[this.#firstDisplayItem + index]),
-        }];
-      } else if (v.highlights) {
-        const prefixLen = strBytesLength(getTreePrefix(v));
-        return v.highlights.map((v: ItemHighlight) => {
-          return {
-            name: v.name,
-            hl_group: v.hl_group,
-            line: linenr,
-            col: v.col + prefixLen,
-            width: v.width,
-          };
-        });
-      } else {
-        return [];
-      }
-    });
-    await invokeVimFunction(
-      denops,
-      "ddu#ui#ff_vim_popup#internal#SetItems",
-      this.#listerPopup.getWinId(),
-      itemTexts,
-      itemHighlights,
-    );
-  }
-
-  async #updateCursorline(denops: Denops, reversed: boolean) {
-    const getCursorline = () => {
-      const cursorIdx = this.#cursorItem - this.#firstDisplayItem;
-      if (reversed) {
-        return this.#maxDisplayItemLength - cursorIdx - 1;
-      } else {
-        return cursorIdx + 1;
-      }
-    };
-
-    assert(this.#signCursorline, isSign);
-
-    if (this.#signCursorline.id) {
-      await fn.sign_unplace(denops, this.#signCursorline.group, {
-        buffer: this.#listerPopup.getBufnr(),
-        id: this.#signCursorline.id,
-      });
-      this.#signCursorline.id = undefined;
-    }
-
-    const signId = await fn.sign_place(
-      denops,
-      0,
-      this.#signCursorline.group,
-      this.#signCursorline.name,
-      this.#listerPopup.getBufnr()!,
-      { lnum: getCursorline() },
-    );
-    if (signId != -1) {
-      this.#signCursorline.id = signId;
-    }
-  }
-
-  async #updatePrompt(denops: Denops) {
-    const mode = ensure(
-      await denops.call(
-        "ddu#ui#ff_vim_popup#internal#CallKeymapperMethod",
-        this.#uiStateId,
-        "get_mode",
-      ),
-      is.String,
-    );
-    await this.#lineBufferDisplay.updateDisplay(denops, this.#lineBuffer);
-    if (mode === "n") {
-      await batch(denops, async (denops) => {
-        await denops.call(
-          "popup_settext",
-          this.#filterPopup.getWinId(),
-          this.#lineBufferDisplay.getDisplay().text,
-        );
-        await denops.call("prop_clear", 1, 1, {
-          bufnr: this.#filterPopup.getBufnr(),
-        });
-      });
-    } else {
-      const display = this.#lineBufferDisplay.getDisplay();
-      const byteColumn = display.byteColumn + 1; // Make 1-indexed.
-      const bufnr = this.#filterPopup.getBufnr();
-      await batch(denops, async (denops) => {
-        await denops.call(
-          "popup_settext",
-          this.#filterPopup.getWinId(),
-          display.text,
-        );
-        await denops.call("prop_clear", 1, 1, { bufnr: bufnr });
-        if (display.charColumn < display.text.length) {
-          await denops.call("prop_add", 1, byteColumn, {
-            type: propTypeName,
-            length: 1,
-            bufnr: bufnr,
-          });
-        } else {
-          await denops.call("prop_add", 1, 0, {
-            type: propTypeName,
-            text: " ",
-            bufnr: bufnr,
-          });
-        }
-      });
-    }
-  }
-
-  async #notifyPromptChanges(denops: Denops) {
-    // TODO: Debounce?
-    await denops.dispatch("ddu", "redraw", this.#uiName!, {
-      input: this.#lineBuffer.text,
-    });
-  }
-
-  #getItemsForAction(): DduItem[] {
-    if (this.#items.length === 0) {
-      return [];
-    }
-    if (this.#selectedItems.size === 0) {
-      return [this.#items[this.#cursorItem]];
-    } else {
-      return Array.from(this.#selectedItems.values()).map((v) => {
-        return this.#items[v];
-      });
-    }
-  }
-
-  async #collapseItemAction(denops: Denops, options: DduOptions) {
-    if (this.#items.length === 0) {
-      return ActionFlags.None;
-    }
-
-    const item = this.#items[this.#cursorItem];
-    if (!item.isTree || item.__level < 0) {
-      return ActionFlags.None;
-    }
-
-    await denops.dispatcher.redrawTree(
-      options.name,
-      "collapse",
-      [{ item }],
-    );
-
-    return ActionFlags.None;
   }
 
   override actions: UiActions<Params> = {
     quit: async (args: {
       denops: Denops;
       options: DduOptions;
-    }) => {
+    }): Promise<ActionFlags> => {
       await this.#onClose(args.denops);
       await args.denops.dispatcher.pop(args.options.name);
       return ActionFlags.None;
-    },
-    selectUpperItem: async (
-      args: { denops: Denops; uiParams: Params; actionParams: unknown },
-    ) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      const { firstDisplayItem, cursorItem } = moveCursorline(
-        this.#cursorItem,
-        this.#firstDisplayItem,
-        args.uiParams.reversed ? count1 : -count1,
-        {
-          itemCount: this.#items.length,
-          scrolloff: this.#scrolloff,
-          displayItemCount: Math.min(
-            this.#maxDisplayItemLength,
-            this.#items.length,
-          ),
-        },
-      );
-
-      if (this.#firstDisplayItem !== firstDisplayItem) {
-        this.#firstDisplayItem = firstDisplayItem;
-        this.#cursorItem = cursorItem;
-        await this.#updateDisplayItems(args.denops, args.uiParams);
-        await this.#updateCursorline(args.denops, args.uiParams.reversed);
-      } else if (this.#cursorItem !== cursorItem) {
-        this.#cursorItem = cursorItem;
-        await this.#updateCursorline(args.denops, args.uiParams.reversed);
-      }
-
-      return ActionFlags.Persist;
-    },
-    selectLowerItem: async (
-      args: { denops: Denops; uiParams: Params; actionParams: unknown },
-    ) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      const { firstDisplayItem, cursorItem } = moveCursorline(
-        this.#cursorItem,
-        this.#firstDisplayItem,
-        args.uiParams.reversed ? -count1 : count1,
-        {
-          itemCount: this.#items.length,
-          scrolloff: this.#scrolloff,
-          displayItemCount: Math.min(
-            this.#maxDisplayItemLength,
-            this.#items.length,
-          ),
-        },
-      );
-
-      if (this.#firstDisplayItem !== firstDisplayItem) {
-        this.#firstDisplayItem = firstDisplayItem;
-        this.#cursorItem = cursorItem;
-        await this.#updateDisplayItems(args.denops, args.uiParams);
-        await this.#updateCursorline(args.denops, args.uiParams.reversed);
-      } else if (this.#cursorItem !== cursorItem) {
-        this.#cursorItem = cursorItem;
-        await this.#updateCursorline(args.denops, args.uiParams.reversed);
-      }
-
-      return ActionFlags.Persist;
     },
     itemAction: async (args: {
       denops: Denops;
@@ -775,7 +304,7 @@ export class Ui extends BaseUi<Params> {
       actionParams: unknown;
     }) => {
       const params = args.actionParams as DoActionParams;
-      const items = params.items ?? this.#getItemsForAction();
+      const items = params.items ?? this.#listerPopup.getItemsForAction();
 
       if (items.length === 0) {
         return ActionFlags.Persist;
@@ -791,69 +320,23 @@ export class Ui extends BaseUi<Params> {
 
       return ActionFlags.None;
     },
-    collapseItem: async (args: {
-      denops: Denops;
-      options: DduOptions;
-    }) => {
-      return await this.#collapseItemAction(args.denops, args.options);
-    },
-    expandItem: async (args: {
-      denops: Denops;
-      options: DduOptions;
-      actionParams: unknown;
-    }) => {
-      if (this.#items.length === 0) {
-        return ActionFlags.None;
-      }
-
-      const isExpandItemParams = is.ObjectOf({
-        mode: as.Optional(is.LiteralOf("toggle")),
-        maxLevel: as.Optional(is.Number),
-        isGrouped: as.Optional(is.Boolean),
-      });
-
-      const item = this.#items[this.#cursorItem];
-      const params = ensure(args.actionParams, isExpandItemParams);
-
-      if (item.__expanded) {
-        if (params.mode === "toggle") {
-          return await this.#collapseItemAction(args.denops, args.options);
-        }
-        return ActionFlags.None;
-      }
-
-      await args.denops.dispatcher.redrawTree(
-        args.options.name,
-        "expand",
-        [{
-          item,
-          maxLevel: params.maxLevel ?? 0,
-          isGrouped: params.isGrouped ?? false,
-        }],
-      );
-      return ActionFlags.None;
-    },
-    toggleSelectItem: () => {
-      if (this.#items.length === 0) {
-        return ActionFlags.None;
-      }
-
-      if (this.#selectedItems.has(this.#cursorItem)) {
-        this.#selectedItems.delete(this.#cursorItem);
-      } else {
-        this.#selectedItems.add(this.#cursorItem);
-      }
-      return ActionFlags.Redraw;
-    },
-    toggleAllItems: () => {
-      const s = new Set([...Array(this.#items.length).keys()]);
-      this.#selectedItems = s.difference(this.#selectedItems);
-      return ActionFlags.Redraw;
-    },
-    clearSelectAllItems: () => {
-      this.#selectedItems.clear();
-      return Promise.resolve(ActionFlags.Redraw);
-    },
+    selectUpperItem: this.#listerPopup.actionSelectUpperItem.bind(
+      this.#listerPopup,
+    ),
+    selectLowerItem: this.#listerPopup.actionSelectLowerItem.bind(
+      this.#listerPopup,
+    ),
+    collapseItem: this.#listerPopup.actionCollapseItem.bind(this.#listerPopup),
+    expandItem: this.#listerPopup.actionExpandItem.bind(this.#listerPopup),
+    toggleSelectItem: this.#listerPopup.actionToggleSelectItem.bind(
+      this.#listerPopup,
+    ),
+    toggleAllItems: this.#listerPopup.actionToggleAllItems.bind(
+      this.#listerPopup,
+    ),
+    clearSelectAllItems: this.#listerPopup.actionClearSelectAllItems.bind(
+      this.#listerPopup,
+    ),
     previewItem: async (args: {
       denops: Denops;
       context: Context;
@@ -866,11 +349,11 @@ export class Ui extends BaseUi<Params> {
         actionParams: BaseActionParams,
         previewContext: PreviewContext,
       ) => Promise<Previewer | undefined>;
-    }) => {
-      if (this.#items.length === 0) {
+    }): Promise<ActionFlags> => {
+      const item = this.#listerPopup.getCurrentItem();
+      if (!item) {
         return ActionFlags.None;
       }
-      const item = this.#items[this.#cursorItem];
       return await this.#previewPopup.doPreview(
         args.denops,
         args.uiParams,
@@ -881,143 +364,29 @@ export class Ui extends BaseUi<Params> {
     },
     // hoverItem {mode: "toggle" | "open" | "close"}
     // This action may be named "previewPath".
-    moveToInsertMode: async (args: { denops: Denops }) => {
-      await invokeVimFunction(
-        args.denops,
-        "ddu#ui#ff_vim_popup#internal#CallKeymapperMethod",
-        this.#uiStateId,
-        "set_mode",
-        "i",
-      );
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
-    undoInput: async (args: { denops: Denops }) => {
-      const buf = this.#lineBufferHistory.prev();
-      if (buf) {
-        this.#lineBuffer = buf;
-        await this.#lineBufferDisplay.updateDisplay(
-          args.denops,
-          this.#lineBuffer,
-        );
-        await this.#updatePrompt(args.denops);
-        await this.#notifyPromptChanges(args.denops);
-      }
-      return ActionFlags.Persist;
-    },
-    redoInput: async (args: { denops: Denops }) => {
-      const buf = this.#lineBufferHistory.next();
-      if (buf) {
-        this.#lineBuffer = buf;
-        await this.#lineBufferDisplay.updateDisplay(
-          args.denops,
-          this.#lineBuffer,
-        );
-        await this.#updatePrompt(args.denops);
-        await this.#notifyPromptChanges(args.denops);
-      }
-      return ActionFlags.Persist;
-    },
 
-    // Belows are "Insert mode" actions.
-    moveToNormalMode: async (args: { denops: Denops }) => {
-      const mode = ensure(
-        await args.denops.call(
-          "ddu#ui#ff_vim_popup#internal#CallKeymapperMethod",
-          this.#uiStateId!,
-          "get_mode",
-        ),
-        is.String,
-      );
-      if (mode === "i") {
-        this.#lineBufferHistory.push(this.#lineBuffer);
-      }
-      await invokeVimFunction(
-        args.denops,
-        "ddu#ui#ff_vim_popup#internal#CallKeymapperMethod",
-        this.#uiStateId,
-        "set_mode",
-        "n",
-      );
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
-    addChar: async (args: { denops: Denops; actionParams: unknown }) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      const ch =
-        ensure(args.actionParams, is.ObjectOf({ char: is.String })).char;
-      const str = ch.repeat(count1);
-      this.#lineBuffer.text =
-        this.#lineBuffer.text.slice(0, this.#lineBuffer.charColumn) + str +
-        this.#lineBuffer.text.slice(this.#lineBuffer.charColumn);
-      this.#lineBuffer.charColumn += str.length;
-      await this.#updatePrompt(args.denops);
-      await this.#notifyPromptChanges(args.denops);
-      return ActionFlags.Persist;
-    },
-    deleteByRegex: async (args: { denops: Denops; actionParams: unknown }) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      assert(args.actionParams, is.ObjectOf({ regex: is.String }));
-      await this.#lineBuffer.deleteByRegex(
-        args.denops,
-        args.actionParams.regex,
-        count1,
-      );
-      await this.#updatePrompt(args.denops);
-      await this.#notifyPromptChanges(args.denops);
-      return ActionFlags.Persist;
-    },
-    deleteChar: async (args: { denops: Denops; actionParams: unknown }) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      await this.#lineBuffer.deleteByRegex(args.denops, ".\\%#", count1);
-      await this.#updatePrompt(args.denops);
-      await this.#notifyPromptChanges(args.denops);
-      return ActionFlags.Persist;
-    },
-    deleteWord: async (args: { denops: Denops; actionParams: unknown }) => {
-      const { count1 = 1 } = ensure(args.actionParams, isActionParamCount1);
-      await this.#lineBuffer.deleteByRegex(
-        args.denops,
-        "\\s*\\w\\+\\%#",
-        count1,
-      );
-      await this.#updatePrompt(args.denops);
-      await this.#notifyPromptChanges(args.denops);
-      return ActionFlags.Persist;
-    },
-    deleteToHead: async (args: { denops: Denops }) => {
-      this.#lineBuffer.text = this.#lineBuffer.text.slice(
-        this.#lineBuffer.charColumn,
-      );
-      this.#lineBuffer.charColumn = 0;
-      await this.#updatePrompt(args.denops);
-      await this.#notifyPromptChanges(args.denops);
-      return ActionFlags.Persist;
-    },
-    moveForward: async (args: { denops: Denops }) => {
-      if (this.#lineBuffer.charColumn < this.#lineBuffer.text.length) {
-        this.#lineBuffer.charColumn += 1;
-      }
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
-    moveBackward: async (args: { denops: Denops }) => {
-      if (this.#lineBuffer.charColumn > 0) {
-        this.#lineBuffer.charColumn -= 1;
-      }
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
-    moveToHead: async (args: { denops: Denops }) => {
-      this.#lineBuffer.charColumn = 0;
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
-    moveToTail: async (args: { denops: Denops }) => {
-      this.#lineBuffer.charColumn = this.#lineBuffer.text.length;
-      await this.#updatePrompt(args.denops);
-      return ActionFlags.Persist;
-    },
+    // Normal mode actions
+    moveToInsertMode: this.#filterPopup.actionMoveToInsertMode.bind(
+      this.#filterPopup,
+    ),
+    undoInput: this.#filterPopup.actionUndoInput.bind(this.#filterPopup),
+    redoInput: this.#filterPopup.actionRedoInput.bind(this.#filterPopup),
+
+    // Insert mode actions
+    moveToNormalMode: this.#filterPopup.actionMoveToNormalMode.bind(
+      this.#filterPopup,
+    ),
+    addChar: this.#filterPopup.actionAddChar.bind(this.#filterPopup),
+    deleteByRegex: this.#filterPopup.actionDeleteByRegex.bind(
+      this.#filterPopup,
+    ),
+    deleteChar: this.#filterPopup.actionDeleteChar.bind(this.#filterPopup),
+    deleteWord: this.#filterPopup.actionDeleteWord.bind(this.#filterPopup),
+    deleteToHead: this.#filterPopup.actionDeleteToHead.bind(this.#filterPopup),
+    moveForward: this.#filterPopup.actionMoveForward.bind(this.#filterPopup),
+    moveBackward: this.#filterPopup.actionMoveBackward.bind(this.#filterPopup),
+    moveToHead: this.#filterPopup.actionMoveToHead.bind(this.#filterPopup),
+    moveToTail: this.#filterPopup.actionMoveToTail.bind(this.#filterPopup),
   };
 
   override params(): Params {

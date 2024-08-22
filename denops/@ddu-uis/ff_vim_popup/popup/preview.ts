@@ -11,19 +11,17 @@ import {
   equal,
   fn,
   is,
-  lambda,
   NoFilePreviewer,
   options,
   PredicateType,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
-} from "./deps.ts";
-import { echomsgError, invokeVimFunction } from "./util.ts";
-import { Highlighter } from "./highlighter.ts";
-import { Params } from "../ff_vim_popup.ts";
-
-const propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
+} from "../deps.ts";
+import { invokeVimFunction } from "../util.ts";
+import { Highlighter } from "../highlighter.ts";
+import { Popup, PopupCreateArgs } from "./base.ts";
+import { Params } from "../../ff_vim_popup.ts";
 
 const isPreviewParams = is.ObjectOf({
   syntaxLimitChars: as.Optional(is.Number),
@@ -31,114 +29,22 @@ const isPreviewParams = is.ObjectOf({
 
 type PreviewParams = PredicateType<typeof isPreviewParams>;
 
-type UserCallback = (denops: Denops, winId: number) => Promise<void>;
-
-export type PopupCreateArgs = {
-  line: number;
-  col: number;
-  minwidth: number;
-  maxwidth: number;
-  minheight: number;
-  maxheight: number;
-  highlight: string;
-  border: number[];
-  borderchars: string[];
-  wrap: false;
-  scrollbar: false;
-};
-
-export class Popup {
-  #winId?: number;
-  #bufnr?: number;
-  #highlight?: string;
-  #userCallback?: UserCallback;
-  #callback?: lambda.Lambda;
-
-  exists(): boolean {
-    return this.#winId !== undefined;
-  }
-
-  async open(
-    denops: Denops,
-    opts: PopupCreateArgs,
-    callback?: UserCallback,
-  ): Promise<void> {
-    if (this.exists()) {
-      await echomsgError(denops, "internal error: popup is already opened");
-      return;
-    }
-    this.#userCallback = callback;
-    this.#highlight = opts.highlight;
-    this.#callback = lambda.add(denops, async (winId: unknown) => {
-      this.#winId = undefined;
-      this.#bufnr = undefined;
-      this.#highlight = undefined;
-      if (this.#userCallback) {
-        await this.#userCallback(denops, ensure(winId, is.Number));
-      }
-      if (this.#callback) {
-        this.#callback.dispose();
-      }
-    });
-    this.#winId = ensure(
-      await denops.call("popup_create", "", opts),
-      is.Number,
-    );
-    this.#bufnr = await fn.winbufnr(denops, this.#winId);
-    await invokeVimFunction(
-      denops,
-      "ddu#ui#ff_vim_popup#internal#RegisterPopupCallback",
-      this.#winId,
-      denops.name,
-      this.#callback.id,
-    );
-  }
-
-  async close(denops: Denops): Promise<void> {
-    if (this.exists()) {
-      await denops.call("popup_close", this.#winId!);
-    }
-  }
-
-  async setText(denops: Denops, text: string[]): Promise<void> {
-    await denops.call("popup_settext", this.#winId!, text);
-  }
-
-  async setBuffer(denops: Denops, bufnr: number): Promise<void> {
-    await batch(denops, async (denops: Denops) => {
-      await denops.call("popup_setbuf", this.#winId!, bufnr);
-      await denops.call("popup_setoptions", this.#winId!, {
-        highlight: this.#highlight!,
-      });
-    });
-    this.#bufnr = bufnr;
-  }
-
-  getWinId(): number | undefined {
-    return this.#winId;
-  }
-
-  getBufnr(): number | undefined {
-    return this.#bufnr;
-  }
-
-  async updateBufnr(denops: Denops) {
-    if (this.exists()) {
-      this.#bufnr = await fn.winbufnr(denops, this.#winId!);
-    }
-  }
-}
-
 export class PreviewPopup extends Popup {
+  static readonly propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
   static readonly #isPopupPos = is.ObjectOf({
     core_col: is.Number,
     core_line: is.Number,
     core_width: is.Number,
     core_height: is.Number,
   });
+
   #previewedTarget?: DduItem;
   #highlighter?: Highlighter;
   #terminalPreviewAbort?: (denops: Denops) => Promise<void>;
+
+  async openWindow(denops: Denops, layout: PopupCreateArgs) {
+    await super.open(denops, layout, []);
+  }
 
   override async close(denops: Denops): Promise<void> {
     if (this.#terminalPreviewAbort) {
@@ -486,7 +392,7 @@ export class PreviewPopup extends Popup {
     if (previewer.lineNr) {
       const len = await options.columns.get(denops);
       await this.#highlighter.addProp(denops, {
-        propTypeName: propTypeName,
+        propTypeName: PreviewPopup.propTypeName,
         highlight: hlName,
         line: previewer.lineNr,
         col: 1,
