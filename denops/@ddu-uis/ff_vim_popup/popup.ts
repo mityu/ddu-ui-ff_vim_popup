@@ -1,6 +1,5 @@
 import {
   ActionFlags,
-  ansiEscapeCode,
   as,
   assert,
   BaseActionParams,
@@ -12,17 +11,15 @@ import {
   equal,
   fn,
   is,
-  itertools,
   lambda,
   NoFilePreviewer,
   options,
-  pipe,
   PredicateType,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
 } from "./deps.ts";
-import { echomsgError, invokeVimFunction, strBytesLength } from "./util.ts";
+import { echomsgError, invokeVimFunction } from "./util.ts";
 import { Highlighter } from "./highlighter.ts";
 import { Params } from "../ff_vim_popup.ts";
 
@@ -519,185 +516,6 @@ export class PreviewPopup extends Popup {
 
   isAlreadyPreviewed(item: DduItem): boolean {
     return equal(item, this.#previewedTarget);
-  }
-}
-
-type HighlightDictAttr = {
-  bold: boolean;
-  inverse: boolean;
-  italic: boolean;
-  strike: boolean;
-  underline: boolean;
-};
-
-type HighlightDict = {
-  name: string;
-  term: HighlightDictAttr;
-  cterm: HighlightDictAttr;
-  gui: HighlightDictAttr;
-  ctermfg?: string;
-  ctermbg?: string;
-  guifg?: string;
-  guibg?: string;
-  force: true;
-};
-
-class DecoratedBuffer {
-  lines: string[];
-  decorations: {
-    line: number;
-    col: number;
-    len: number;
-    highlight: string;
-  }[];
-  highlights: Map<string, HighlightDict>;
-  #terminalAnsiColors?: string[];
-
-  constructor() {
-    this.lines = [];
-    this.decorations = [];
-    this.highlights = new Map();
-  }
-
-  setTerminalAnsiColors(colors: string[]) {
-    this.#terminalAnsiColors = colors;
-  }
-
-  addLine(line: string) {
-    const [text, annons] = ansiEscapeCode.trimAndParse(line);
-    this.lines.push(text);
-
-    // Build decoration information.
-    const linenr = this.lines.length;
-    const decos = pipe(
-      annons,
-      (annons) => {
-        return annons.map((annon) => {
-          return {
-            offset: strBytesLength(text.substring(0, annon.offset)),
-            sgr: annon.csi.sgr,
-          };
-        });
-      },
-      (annons) => {
-        annons.push({ offset: strBytesLength(text), sgr: undefined });
-        return annons;
-      },
-      (annons) => {
-        const decos = [];
-        for (const [cur, next] of itertools.pairwise(annons)) {
-          if (cur.sgr) {
-            const highlight = this.#getHighlightName(cur.sgr);
-            if (highlight) {
-              decos.push({
-                line: linenr,
-                col: cur.offset + 1,
-                len: next.offset - cur.offset,
-                highlight: highlight,
-              });
-              if (!this.highlights.has(highlight)) {
-                this.highlights.set(
-                  highlight,
-                  this.#getHighlightDict(highlight, cur.sgr),
-                );
-              }
-            }
-          }
-        }
-        return decos;
-      },
-      (decos) => decos.filter((v) => v),
-    );
-    this.decorations.push(...decos);
-  }
-
-  clear() {
-    this.lines = [];
-    this.decorations = [];
-    this.#terminalAnsiColors = undefined;
-  }
-
-  #getHighlightName(sgr: ansiEscapeCode.Sgr): string | undefined {
-    if (sgr.reset) {
-      return undefined;
-    }
-
-    const attr = [
-      sgr.foreground ? `F${this.#formatColor(sgr.foreground)}` : "",
-      sgr.background ? `F${this.#formatColor(sgr.background)}` : "",
-      sgr.bold ? "Bold" : "",
-      sgr.inverse ? "Inverse" : "",
-      sgr.italic ? "Italic" : "",
-      sgr.strike ? "Strike" : "",
-      sgr.underline ? "Underline" : "",
-    ];
-    if (attr.length === 0) {
-      return undefined;
-    }
-    return `DduFfVimPopupTermPreview${attr.join("")}`;
-  }
-
-  #getHighlightDict(name: string, sgr: ansiEscapeCode.Sgr): HighlightDict {
-    const toBoolean = (x: boolean | unknown): boolean => {
-      return x ? true : false;
-    };
-    const attrs = {
-      bold: toBoolean(sgr.bold),
-      inverse: toBoolean(sgr.inverse),
-      italic: toBoolean(sgr.italic),
-      strike: toBoolean(sgr.strike),
-      underline: toBoolean(sgr.underline),
-    };
-
-    const getFg = (c: ansiEscapeCode.Color | undefined) => {
-      if (c == null || c === "default") {
-        return {};
-      } else if (is.Number(c)) {
-        return {
-          ctermfg: c.toString(),
-          guifg: this.#terminalAnsiColors![c],
-        };
-      } else {
-        return {
-          guifg: `#${this.#formatColor(c)}`,
-        };
-      }
-    };
-
-    const getBg = (c: ansiEscapeCode.Color | undefined) => {
-      if (c == null || c === "default") {
-        return {};
-      } else if (is.Number(c)) {
-        return {
-          ctermbg: c.toString(),
-          guibg: this.#terminalAnsiColors![c],
-        };
-      } else {
-        return {
-          guibg: `#${this.#formatColor(c)}`,
-        };
-      }
-    };
-
-    return {
-      name: name,
-      force: true,
-      term: attrs,
-      cterm: attrs,
-      gui: attrs,
-      ...getFg(sgr.foreground),
-      ...getBg(sgr.background),
-    };
-  }
-
-  #formatColor(c: ansiEscapeCode.Color): string {
-    if (c === "default") {
-      return "";
-    } else if (is.Number(c)) {
-      return c.toString();
-    } else {
-      return c.map((v) => v.toString(16).padStart(2, "0")).join("");
-    }
   }
 }
 
