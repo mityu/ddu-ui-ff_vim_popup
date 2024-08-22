@@ -92,9 +92,8 @@ export class FilterPopup extends Popup {
   async #updatePrompt(denops: Denops) {
     const mode = ensure(
       await denops.call(
-        "ddu#ui#ff_vim_popup#keyhandler#Call",
+        "ddu#ui#ff_vim_popup#keyhandler#GetMode",
         this.#keyhandlerId,
-        "get_mode",
       ),
       is.String,
     );
@@ -141,9 +140,8 @@ export class FilterPopup extends Popup {
   async actionMoveToInsertMode(args: { denops: Denops }): Promise<ActionFlags> {
     await invokeVimFunction(
       args.denops,
-      "ddu#ui#ff_vim_popup#keyhandler#Call",
+      "ddu#ui#ff_vim_popup#keyhandler#SetMode",
       this.#keyhandlerId,
-      "set_mode",
       "i",
     );
     await this.#updatePrompt(args.denops);
@@ -182,9 +180,8 @@ export class FilterPopup extends Popup {
   async actionMoveToNormalMode(args: { denops: Denops }): Promise<ActionFlags> {
     const mode = ensure(
       await args.denops.call(
-        "ddu#ui#ff_vim_popup#keyhandler#Call",
+        "ddu#ui#ff_vim_popup#keyhandler#GetMode",
         this.#keyhandlerId,
-        "get_mode",
       ),
       is.String,
     );
@@ -193,9 +190,8 @@ export class FilterPopup extends Popup {
     }
     await invokeVimFunction(
       args.denops,
-      "ddu#ui#ff_vim_popup#keyhandler#Call",
+      "ddu#ui#ff_vim_popup#keyhandler#SetMode",
       this.#keyhandlerId,
-      "set_mode",
       "n",
     );
     await this.#updatePrompt(args.denops);

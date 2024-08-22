@@ -42,15 +42,15 @@ export class PreviewPopup extends Popup {
 
   #previewedTarget?: DduItem;
   #highlighter?: Highlighter;
-  #terminalPreviewAbort?: (denops: Denops) => Promise<void>;
+  #abortTerminalPreview?: (denops: Denops) => Promise<void>;
 
   async openWindow(denops: Denops, layout: PopupCreateArgs) {
     await super.open(denops, layout, []);
   }
 
   override async close(denops: Denops): Promise<void> {
-    if (this.#terminalPreviewAbort) {
-      await this.#terminalPreviewAbort(denops);
+    if (this.#abortTerminalPreview) {
+      await this.#abortTerminalPreview(denops);
     }
     await super.close(denops);
   }
@@ -72,9 +72,9 @@ export class PreviewPopup extends Popup {
     }
 
     // Kill terminal previewer if exists.
-    if (this.#terminalPreviewAbort) {
-      await this.#terminalPreviewAbort(denops);
-      this.#terminalPreviewAbort = undefined;
+    if (this.#abortTerminalPreview) {
+      await this.#abortTerminalPreview(denops);
+      this.#abortTerminalPreview = undefined;
     }
 
     assert(actionParams, isPreviewParams);
@@ -226,7 +226,7 @@ export class PreviewPopup extends Popup {
       },
     );
 
-    this.#terminalPreviewAbort = async (denops: Denops) => {
+    this.#abortTerminalPreview = async (denops: Denops) => {
       await invokeVimFunction(
         denops,
         "ddu#ui#ff_vim_popup#term_previewer#StopPreview",
@@ -355,7 +355,7 @@ export class PreviewPopup extends Popup {
       const hasPattern = is.ObjectOf({ pattern: is.String });
       if (hasPattern(previewer)) {
         const linenr = await denops.call(
-          "ddu#ui#ff_vim_popup#Search",
+          "ddu#ui#ff_vim_popup#util#Search",
           this.getWinId(),
           previewer.pattern,
         );

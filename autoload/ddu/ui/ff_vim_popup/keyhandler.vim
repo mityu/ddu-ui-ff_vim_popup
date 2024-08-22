@@ -158,9 +158,12 @@ export def SetupKeyHandler(id: string, optsGiven: dict<any>): dict<any>
   }->extend(optsGiven, 'keep')
 enddef
 
-export def Call(id: string, method: string, ...args: list<any>): any
-  final session = Session.Get(id)
-  return call(session.keymapper[method], args)
+export def SetMode(id: string, mode: string)
+  Session.Get(id).keymapper.set_mode(mode)
+enddef
+
+export def GetMode(id: string): string
+  return Session.Get(id).keymapper.get_mode()
 enddef
 
 def ReplaceTermcodes(s: string): string
