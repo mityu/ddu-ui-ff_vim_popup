@@ -74,4 +74,12 @@ export class Highlighter {
       }
     });
   }
+
+  getBufnr(): number {
+    return this.#bufnr;
+  }
+
+  getWinId(): number {
+    return this.#winId;
+  }
 }

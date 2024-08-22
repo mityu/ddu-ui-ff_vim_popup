@@ -217,6 +217,26 @@ export def CallKeymapperMethod(uiStateId: number, method: string, ...args: list<
   return call(s.keymapper[method], args)
 enddef
 
+def TermCallback(denops: string, lambda: string, ch: channel, ...args: list<string>)
+  denops#notify(denops, lambda, args)
+enddef
+
+export def TermStart(cmd: list<string>, denops: string, optsGiven: dict<any>): number
+  const opts = {
+    out_cb: funcref(TermCallback, [denops, optsGiven.out_cb]),
+    err_cb: funcref(TermCallback, [denops, optsGiven.err_cb]),
+    close_cb: funcref(TermCallback, [denops, optsGiven.close_cb]),
+  }->extend(optsGiven, 'keep')
+  return term_start(cmd, opts)
+enddef
+
+export def TermKill(bufnr: number)
+  const job = term_getjob(bufnr)
+  if job != null_job
+    job_stop(job)
+  endif
+enddef
+
 def ReplaceTermcodes(s: string): string
   return s->substitute('<[^<>]\+>', '\=eval(printf(''"\%s"'', submatch(0)))', 'g')
 enddef

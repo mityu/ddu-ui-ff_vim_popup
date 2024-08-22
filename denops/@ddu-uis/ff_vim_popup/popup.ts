@@ -1,5 +1,6 @@
 import {
   ActionFlags,
+  ansiEscapeCode,
   as,
   assert,
   BaseActionParams,
@@ -11,16 +12,21 @@ import {
   equal,
   fn,
   is,
+  itertools,
   lambda,
   NoFilePreviewer,
   options,
+  pipe,
   PredicateType,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
+  vars,
+  vimFn,
 } from "./deps.ts";
-import { echomsgError, invokeVimFunction } from "./util.ts";
+import { echomsgError, invokeVimFunction, strBytesLength } from "./util.ts";
 import { Highlighter } from "./highlighter.ts";
+import { CommandOptions, Executor } from "./executor.ts";
 import { Params } from "../ff_vim_popup.ts";
 
 const propTypeName = "ddu-ui-ff_vim_popup-prop-type-preview-highlight";
@@ -130,14 +136,21 @@ export class Popup {
 }
 
 export class PreviewPopup extends Popup {
-  #previewedTarget?: DduItem;
-  #isPopupPos = is.ObjectOf({
+  static readonly #isPopupPos = is.ObjectOf({
     core_col: is.Number,
     core_line: is.Number,
     core_width: is.Number,
     core_height: is.Number,
   });
+  #previewedTarget?: DduItem;
   #highlighter?: Highlighter;
+  #terminalPreviewDrawer: TerminalPreviewDrawer;
+  #terminalPreviewExecutor?: Executor;
+
+  constructor() {
+    super();
+    this.#terminalPreviewDrawer = new TerminalPreviewDrawer(this);
+  }
 
   async doPreview(
     denops: Denops,
@@ -155,11 +168,17 @@ export class PreviewPopup extends Popup {
       return ActionFlags.None;
     }
 
+    // Kill terminal previewer if exists.
+    if (this.#terminalPreviewExecutor) {
+      await this.#terminalPreviewExecutor.abort(denops);
+      this.#terminalPreviewExecutor = undefined;
+    }
+
     assert(actionParams, isPreviewParams);
 
     const popupPos = ensure(
       await denops.call("popup_getpos", this.getWinId()),
-      this.#isPopupPos,
+      PreviewPopup.#isPopupPos,
     );
     const previewContext: PreviewContext = {
       col: popupPos.core_col,
@@ -184,6 +203,7 @@ export class PreviewPopup extends Popup {
         return await this.#previewContentsTerminal(
           denops,
           previewer,
+          item,
         );
       } else {
         return await this.#previewContentsBuffer(
@@ -204,6 +224,10 @@ export class PreviewPopup extends Popup {
     await this.#jump(denops, previewer, previewContext);
 
     return ActionFlags.Persist;
+  }
+
+  getHighlighter(): Highlighter | undefined {
+    return this.#highlighter;
   }
 
   // Handle buffer previewer and nofile previewer.
@@ -276,15 +300,57 @@ export class PreviewPopup extends Popup {
   async #previewContentsTerminal(
     denops: Denops,
     previewer: TerminalPreviewer,
+    item: DduItem,
   ): Promise<ActionFlags> {
-    await this.setText(denops, ["Terminal previewer is not implemented yet."]);
+    if (this.#highlighter) {
+      await this.#highlighter.clearAll(denops);
+      this.#highlighter = undefined;
+    }
+
+    this.#terminalPreviewDrawer.clear();
+    await this.#terminalPreviewDrawer.prepare(denops);
+
+    const previewBuffer = await this.#getPreviewBuffer(denops, previewer, item);
+    await this.setBuffer(denops, previewBuffer.bufnr);
+
+    this.#highlighter = new Highlighter(this.getWinId()!, previewBuffer.bufnr);
+
+    const opts: CommandOptions = {
+      out_cb: async (msg: string) => {
+        this.#terminalPreviewDrawer.addStdout(msg);
+        await this.#terminalPreviewDrawer.showWithoutDecorations(
+          denops,
+          this.#highlighter!,
+        );
+      },
+      err_cb: async (msg: string) => {
+        this.#terminalPreviewDrawer.addStderr(msg);
+        await this.#terminalPreviewDrawer.showWithoutDecorations(
+          denops,
+          this.#highlighter!,
+        );
+      },
+      close_cb: async () => {
+        await this.#terminalPreviewDrawer.showWithDecorations(
+          denops,
+          this.#highlighter!,
+        );
+        this.#terminalPreviewExecutor = undefined;
+      },
+    };
+    if (previewer.cwd) {
+      opts.cwd = previewer.cwd;
+    }
+    this.#terminalPreviewExecutor = new Executor(previewer.cmds, opts);
+    await this.#terminalPreviewExecutor.spawn(denops);
+
     return ActionFlags.Persist;
   }
 
   // Get bufname/bufnr for preview.  The buffer is created if necessary.
   async #getPreviewBuffer(
     denops: Denops,
-    previewer: BufferPreviewer | NoFilePreviewer,
+    previewer: BufferPreviewer | NoFilePreviewer | TerminalPreviewer,
     item: DduItem,
   ): Promise<{ bufname: string; bufnr: number }> {
     // Use existing buffer as the preview buffer.
@@ -319,7 +385,7 @@ export class PreviewPopup extends Popup {
         } else { // !previewer.expr
           return `${schema}${previewer.path}`;
         }
-      } else if (previewer.kind === "nofile") {
+      } else if (previewer.kind === "nofile" || previewer.kind == "terminal") {
         return `${schema}preview`;
       } else {
         return `${schema}${item.word}`;
@@ -341,7 +407,7 @@ export class PreviewPopup extends Popup {
       await fn.setbufvar(denops, newBufnr, "&swapfile", 0);
       await fn.setbufvar(denops, newBufnr, "&backup", 0);
       await fn.setbufvar(denops, newBufnr, "&undofile", 0);
-      await fn.setbufvar(denops, newBufnr, "&bufhidden", "wipe");
+      await fn.setbufvar(denops, newBufnr, "&bufhidden", "hide");
       await fn.setbufvar(denops, newBufnr, "&modeline", 1);
 
       await fn.bufload(denops, newBufnr);
@@ -468,6 +534,320 @@ export class PreviewPopup extends Popup {
 
   isAlreadyPreviewed(item: DduItem): boolean {
     return equal(item, this.#previewedTarget);
+  }
+}
+
+type HighlightDictAttr = {
+  bold: boolean;
+  inverse: boolean;
+  italic: boolean;
+  strike: boolean;
+  underline: boolean;
+};
+
+type HighlightDict = {
+  name: string;
+  term: HighlightDictAttr;
+  cterm: HighlightDictAttr;
+  gui: HighlightDictAttr;
+  ctermfg?: string;
+  ctermbg?: string;
+  guifg?: string;
+  guibg?: string;
+  force: true;
+};
+
+class DecoratedBuffer {
+  lines: string[];
+  decorations: {
+    line: number;
+    col: number;
+    len: number;
+    highlight: string;
+  }[];
+  highlights: Map<string, HighlightDict>;
+  #terminalAnsiColors?: string[];
+
+  constructor() {
+    this.lines = [];
+    this.decorations = [];
+    this.highlights = new Map();
+  }
+
+  setTerminalAnsiColors(colors: string[]) {
+    this.#terminalAnsiColors = colors;
+  }
+
+  addLine(line: string) {
+    const [text, annons] = ansiEscapeCode.trimAndParse(line);
+    this.lines.push(text);
+
+    // Build decoration information.
+    const linenr = this.lines.length;
+    const decos = pipe(
+      annons,
+      (annons) => {
+        return annons.map((annon) => {
+          return {
+            offset: strBytesLength(text.substring(0, annon.offset)),
+            sgr: annon.csi.sgr,
+          };
+        });
+      },
+      (annons) => {
+        annons.push({ offset: strBytesLength(text), sgr: undefined });
+        return annons;
+      },
+      (annons) => {
+        const decos = [];
+        for (const [cur, next] of itertools.pairwise(annons)) {
+          if (cur.sgr) {
+            const highlight = this.#getHighlightName(cur.sgr);
+            if (highlight) {
+              decos.push({
+                line: linenr,
+                col: cur.offset + 1,
+                len: next.offset - cur.offset,
+                highlight: highlight,
+              });
+              if (!this.highlights.has(highlight)) {
+                this.highlights.set(
+                  highlight,
+                  this.#getHighlightDict(highlight, cur.sgr),
+                );
+              }
+            }
+          }
+        }
+        return decos;
+      },
+      (decos) => decos.filter((v) => v),
+    );
+    this.decorations.push(...decos);
+  }
+
+  clear() {
+    this.lines = [];
+    this.decorations = [];
+    this.#terminalAnsiColors = undefined;
+  }
+
+  #getHighlightName(sgr: ansiEscapeCode.Sgr): string | undefined {
+    if (sgr.reset) {
+      return undefined;
+    }
+
+    const attr = [
+      sgr.foreground ? `F${this.#formatColor(sgr.foreground)}` : "",
+      sgr.background ? `F${this.#formatColor(sgr.background)}` : "",
+      sgr.bold ? "Bold" : "",
+      sgr.inverse ? "Inverse" : "",
+      sgr.italic ? "Italic" : "",
+      sgr.strike ? "Strike" : "",
+      sgr.underline ? "Underline" : "",
+    ];
+    if (attr.length === 0) {
+      return undefined;
+    }
+    return `DduFfVimPopupTermPreview${attr.join("")}`;
+  }
+
+  #getHighlightDict(name: string, sgr: ansiEscapeCode.Sgr): HighlightDict {
+    const toBoolean = (x: boolean | unknown): boolean => {
+      return x ? true : false;
+    };
+    const attrs = {
+      bold: toBoolean(sgr.bold),
+      inverse: toBoolean(sgr.inverse),
+      italic: toBoolean(sgr.italic),
+      strike: toBoolean(sgr.strike),
+      underline: toBoolean(sgr.underline),
+    };
+
+    const getFg = (c: ansiEscapeCode.Color | undefined) => {
+      if (c == null || c === "default") {
+        return {};
+      } else if (is.Number(c)) {
+        return {
+          ctermfg: c.toString(),
+          guifg: this.#terminalAnsiColors![c],
+        };
+      } else {
+        return {
+          guifg: `#${this.#formatColor(c)}`,
+        };
+      }
+    };
+
+    const getBg = (c: ansiEscapeCode.Color | undefined) => {
+      if (c == null || c === "default") {
+        return {};
+      } else if (is.Number(c)) {
+        return {
+          ctermbg: c.toString(),
+          guibg: this.#terminalAnsiColors![c],
+        };
+      } else {
+        return {
+          guibg: `#${this.#formatColor(c)}`,
+        };
+      }
+    };
+
+    return {
+      name: name,
+      force: true,
+      term: attrs,
+      cterm: attrs,
+      gui: attrs,
+      ...getFg(sgr.foreground),
+      ...getBg(sgr.background),
+    };
+  }
+
+  #formatColor(c: ansiEscapeCode.Color): string {
+    if (c === "default") {
+      return "";
+    } else if (is.Number(c)) {
+      return c.toString();
+    } else {
+      return c.map((v) => v.toString(16).padStart(2, "0")).join("");
+    }
+  }
+}
+
+class TerminalPreviewDrawer {
+  static readonly propTypeName =
+    "ddu-ui-ff-vim-popup-terminal-previewer-drawer-stderr-region";
+  #popup: PreviewPopup;
+  #stdout: DecoratedBuffer;
+  #stderr: DecoratedBuffer;
+
+  constructor(popup: PreviewPopup) {
+    this.#popup = popup;
+    this.#stdout = new DecoratedBuffer();
+    this.#stderr = new DecoratedBuffer();
+  }
+
+  clear() {
+    this.#stdout.clear();
+    this.#stderr.clear();
+  }
+
+  async prepare(denops: Denops) {
+    const colors = await this.#getTerminalAnsiColors(denops);
+    this.#stdout.setTerminalAnsiColors(colors);
+    this.#stderr.setTerminalAnsiColors(colors);
+  }
+
+  addStdout(msg: string) {
+    msg.split(/\r?\n/).forEach((line) => this.#stdout.addLine(line));
+  }
+
+  addStderr(msg: string) {
+    msg.split(/\r?\n/).forEach((line) => this.#stderr.addLine(line));
+  }
+
+  async showWithoutDecorations(
+    denops: Denops,
+    highlighter: Highlighter,
+  ): Promise<void> {
+    await this.#popup.setText(denops, this.#getLines());
+    if (this.#stderr.lines.length !== 0) {
+      await batch(denops, async (denops) => {
+        const lens = this.#stderr.lines.map((line) => strBytesLength(line));
+        for (const [i, len] of itertools.enumerate(lens)) {
+          await highlighter.addProp(denops, {
+            propTypeName: TerminalPreviewDrawer.propTypeName,
+            highlight: "Error",
+            line: i + 1,
+            col: 0,
+            len: len,
+          });
+        }
+      });
+    }
+  }
+
+  async showWithDecorations(
+    denops: Denops,
+    highlighter: Highlighter,
+  ): Promise<void> {
+    await this.showWithoutDecorations(denops, highlighter);
+
+    if (this.#stdout.highlights.size !== 0) {
+      await vimFn.hlset(denops, Array.from(this.#stdout.highlights.values()));
+    }
+
+    if (this.#stderr.lines.length !== 0) {
+      // Show stderr and stdout.
+      if (this.#stderr.highlights.size !== 0) {
+        await vimFn.hlset(denops, Array.from(this.#stderr.highlights.values()));
+      }
+
+      const lineOffset = this.#stderr.lines.length + 1;
+      const stdoutDecos = this.#stdout.decorations.map((deco) => {
+        return {
+          ...deco,
+          line: deco.line + lineOffset,
+        };
+      });
+
+      const decos = itertools.chain(this.#stderr.decorations, stdoutDecos);
+
+      for (const deco of decos) {
+        await highlighter.addProp(denops, {
+          ...deco,
+          propTypeName: TerminalPreviewDrawer.propTypeName,
+        });
+      }
+    } else {
+      // Show only stdout
+      for (const deco of this.#stdout.decorations) {
+        // NOTE: Using batch() here doesn't work well because prop_type_get
+        // after prop_type_add doesn't return proper result if batched.
+        await highlighter.addProp(denops, {
+          ...deco,
+          propTypeName: `prop-type-${deco.highlight}`,
+        });
+      }
+    }
+  }
+
+  #getLines(): string[] {
+    if (this.#stderr.lines.length === 0) {
+      return this.#stdout.lines;
+    } else {
+      return [...this.#stderr.lines, "", ...this.#stdout.lines];
+    }
+  }
+
+  async #getTerminalAnsiColors(denops: Denops): Promise<string[]> {
+    const colors = ensure(
+      await vars.g.get(denops, "terminal_ansi_colors", undefined),
+      as.Optional(is.ArrayOf(is.String)),
+    );
+    if (colors !== undefined && colors.length !== 0) {
+      return colors;
+    }
+    return [
+      "black",
+      "darkred",
+      "darkgreen",
+      "brown",
+      "darkblue",
+      "darkmagenta",
+      "darkcyan",
+      "lightgrey",
+      "darkgrey",
+      "red",
+      "green",
+      "yellow",
+      "blue",
+      "magenta",
+      "cyan",
+      "white",
+    ];
   }
 }
 
