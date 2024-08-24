@@ -193,7 +193,7 @@ export class PreviewPopup extends Popup {
         denops,
         previewer,
         previewBuffer.bufnr,
-        uiParams.highlights.preview,
+        uiParams.highlights.previewline,
       );
     }
 

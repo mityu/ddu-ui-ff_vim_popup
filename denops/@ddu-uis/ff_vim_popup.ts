@@ -69,7 +69,7 @@ export type Params = {
     cursor: string;
     cursorline: string;
     selected: string;
-    preview: string;
+    previewline: string;
   };
   displayTree: boolean;
   reversed: boolean;
@@ -440,7 +440,7 @@ export class Ui extends BaseUi<Params> {
         cursor: "Cursor",
         popup: "Normal",
         selected: "Statement",
-        preview: "Search",
+        previewline: "Search",
       },
       displayTree: false,
       reversed: false,
