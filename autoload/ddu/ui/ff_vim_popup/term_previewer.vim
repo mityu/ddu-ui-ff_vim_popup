@@ -21,7 +21,7 @@ export def DoPreview(popupId: number, cmds: list<string>, optsGiven: dict<any>):
   const opts = {
     hidden: true,
     callback: (ch: channel, msg: string) =>
-      debounce.Queue(20, UpdateDisplay, [termbufnr, popupId]),
+      debounce.Queue(20, ScrapeTerminal, [termbufnr, popupId]),
     close_cb: (ch: channel) => execute($':{termbufnr}bwipeout!'),
   }->extend(optsGiven, 'keep')
   termbufnr = term_start(cmds, opts)
@@ -35,7 +35,7 @@ export def StopPreview(termbufnr: number)
   endif
 enddef
 
-def UpdateDisplay(termbufnr: number, popupId: number)
+export def ScrapeTerminal(termbufnr: number, popupId: number)
   if !bufexists(termbufnr) || getbufvar(termbufnr, '&buftype') !=# 'terminal'
     return
   endif

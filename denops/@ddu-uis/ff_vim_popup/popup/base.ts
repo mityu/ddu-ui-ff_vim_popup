@@ -85,6 +85,7 @@ export class Popup {
       await denops.call("popup_setbuf", this.#winId!, bufnr);
       await vimFn.popup_setoptions(denops, this.#winId!, {
         highlight: this.#highlight,
+        wrap: false,
       });
     });
     this.#bufnr = bufnr;
