@@ -320,23 +320,6 @@ export class Ui extends BaseUi<Params> {
 
       return ActionFlags.None;
     },
-    selectUpperItem: this.#listerPopup.actionSelectUpperItem.bind(
-      this.#listerPopup,
-    ),
-    selectLowerItem: this.#listerPopup.actionSelectLowerItem.bind(
-      this.#listerPopup,
-    ),
-    collapseItem: this.#listerPopup.actionCollapseItem.bind(this.#listerPopup),
-    expandItem: this.#listerPopup.actionExpandItem.bind(this.#listerPopup),
-    toggleSelectItem: this.#listerPopup.actionToggleSelectItem.bind(
-      this.#listerPopup,
-    ),
-    toggleAllItems: this.#listerPopup.actionToggleAllItems.bind(
-      this.#listerPopup,
-    ),
-    clearSelectAllItems: this.#listerPopup.actionClearSelectAllItems.bind(
-      this.#listerPopup,
-    ),
     previewItem: async (args: {
       denops: Denops;
       context: Context;
@@ -362,8 +345,25 @@ export class Ui extends BaseUi<Params> {
         args.getPreviewer,
       );
     },
+    selectUpperItem: this.#listerPopup.actionSelectUpperItem.bind(
+      this.#listerPopup,
+    ),
+    selectLowerItem: this.#listerPopup.actionSelectLowerItem.bind(
+      this.#listerPopup,
+    ),
+    collapseItem: this.#listerPopup.actionCollapseItem.bind(this.#listerPopup),
+    expandItem: this.#listerPopup.actionExpandItem.bind(this.#listerPopup),
+    toggleSelectItem: this.#listerPopup.actionToggleSelectItem.bind(
+      this.#listerPopup,
+    ),
+    toggleAllItems: this.#listerPopup.actionToggleAllItems.bind(
+      this.#listerPopup,
+    ),
+    clearSelectAllItems: this.#listerPopup.actionClearSelectAllItems.bind(
+      this.#listerPopup,
+    ),
+    chooseAction: this.#listerPopup.actionChooseAction.bind(this.#listerPopup),
     // hoverItem {mode: "toggle" | "open" | "close"}
-    // This action may be named "previewPath".
 
     // Normal mode actions
     moveToInsertMode: this.#filterPopup.actionMoveToInsertMode.bind(

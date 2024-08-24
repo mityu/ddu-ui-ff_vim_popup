@@ -122,7 +122,7 @@ export class PreviewPopup extends Popup {
           previewer,
           uiParams,
           actionParams,
-          item
+          item,
         );
       } else {
         return await this.#previewContentsBuffer(

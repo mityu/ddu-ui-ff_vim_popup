@@ -440,6 +440,36 @@ export class ListerPopup extends Popup {
     this.#selectedItems.clear();
     return ActionFlags.Redraw;
   }
+
+  async actionChooseAction(args: {
+    denops: Denops;
+    options: DduOptions;
+  }): Promise<ActionFlags> {
+    const items = this.getItemsForAction();
+
+    const actions = await args.denops.dispatcher.getItemActionNames(
+      args.options.name,
+      items,
+    );
+
+    await args.denops.dispatcher.start({
+      name: args.options.name,
+      push: true,
+      sources: [
+        {
+          name: "action",
+          options: {},
+          params: {
+            actions,
+            name: args.options.name,
+            items,
+          },
+        },
+      ],
+    });
+
+    return ActionFlags.None;
+  }
 }
 
 function moveCursorline(
