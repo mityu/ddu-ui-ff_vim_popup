@@ -133,9 +133,9 @@ enddef
 export def CreateNewHandler(uiParams: dict<any>): string
   const id = Session.Add(Session.new(uiParams))
   sessionId = id
-  if exists('#User#ddu-ui-ff_vim_popup-open-pre')
+  if exists('#User#Ddu:ui:ff_vim_popup:openWindowPre')
     try
-      doautocmd User ddu-ui-ff_vim_popup-open-pre
+      doautocmd User Ddu:ui:ff_vim_popup:openWindowPre
     catch
       ddu#ui#ff_vim_popup#util#EchomsgError($"{v:throwpoint}\n{v:exception}")
     endtry
