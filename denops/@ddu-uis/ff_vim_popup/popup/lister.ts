@@ -417,7 +417,7 @@ export class ListerPopup extends Popup {
     return ActionFlags.None;
   }
 
-  actionToggleSelectItem(): number {
+  actionToggleSelectItem(): ActionFlags {
     if (this.#items.length === 0) {
       return ActionFlags.None;
     }
@@ -430,13 +430,13 @@ export class ListerPopup extends Popup {
     return ActionFlags.Redraw;
   }
 
-  actionToggleAllItems(): number {
+  actionToggleAllItems(): ActionFlags {
     const s = new Set([...Array(this.#items.length).keys()]);
     this.#selectedItems = s.difference(this.#selectedItems);
     return ActionFlags.Redraw;
   }
 
-  actionClearSelectAllItems(): number {
+  actionClearSelectAllItems(): ActionFlags {
     this.#selectedItems.clear();
     return ActionFlags.Redraw;
   }
