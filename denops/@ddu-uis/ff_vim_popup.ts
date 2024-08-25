@@ -71,6 +71,7 @@ export type Params = {
     selected: string;
     previewline: string;
   };
+  startFilter: boolean;
   displayTree: boolean;
   reversed: boolean;
   hideCursor: boolean;
@@ -270,6 +271,10 @@ export class Ui extends BaseUi<Params> {
       args.uiParams,
       this.#sessionId,
     );
+
+    if (args.uiParams.startFilter) {
+      await this.#filterPopup.actionMoveToInsertMode({ denops: args.denops });
+    }
   }
 
   async #onClose(denops: Denops) {
@@ -442,6 +447,7 @@ export class Ui extends BaseUi<Params> {
         selected: "Statement",
         previewline: "Search",
       },
+      startFilter: false,
       displayTree: false,
       reversed: false,
       hideCursor: false,

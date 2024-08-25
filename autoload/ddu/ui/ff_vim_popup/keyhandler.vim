@@ -145,8 +145,6 @@ export def CreateNewHandler(uiParams: dict<any>): string
 enddef
 
 export def DisposeHandler(id: string)
-  # const obj = Session.Dispose(id)
-  # obj.Dispose()
   Session.Dispose(id)
 enddef
 
