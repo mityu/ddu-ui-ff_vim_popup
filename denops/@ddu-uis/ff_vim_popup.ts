@@ -1,22 +1,24 @@
 import {
   ActionFlags,
-  as,
   BaseActionParams,
   BaseUi,
-  batch,
   Context,
   type DduItem,
   type DduOptions,
   type Denops,
-  ensure,
-  is,
-  type PredicateType,
   PreviewContext,
   Previewer,
   UiActions,
   UiOptions,
-  vars,
-} from "./ff_vim_popup/deps.ts";
+} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { batch } from "jsr:@denops/std@~7.0.1/batch";
+import * as vars from "jsr:@denops/std@~7.0.1/variable";
+import {
+  as,
+  ensure,
+  is,
+  type PredicateType,
+} from "jsr:@core/unknownutil@~4.3.0";
 import { type PopupCreateArgs } from "./ff_vim_popup/popup/base.ts";
 import { FilterPopup } from "./ff_vim_popup/popup/filter.ts";
 import { ListerPopup } from "./ff_vim_popup/popup/lister.ts";

@@ -1,4 +1,4 @@
-import { type Denops } from "./deps.ts";
+import { type Denops } from "jsr:@shougo/ddu-vim@~5.0.0/types";
 
 export async function invokeVimFunction(
   denops: Denops,

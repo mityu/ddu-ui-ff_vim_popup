@@ -1,19 +1,21 @@
 import {
   ActionFlags,
-  as,
-  assert,
-  batch,
   type DduItem,
   type DduOptions,
   type Denops,
-  ensure,
-  equal,
-  fn,
-  is,
   type ItemHighlight,
+} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { batch } from "jsr:@denops/std@~7.0.1/batch";
+import * as vars from "jsr:@denops/std@~7.0.1/variable";
+import * as fn from "jsr:@denops/std@~7.0.1/function";
+import {
+  as,
+  assert,
+  ensure,
+  is,
   type PredicateType,
-  vars,
-} from "../deps.ts";
+} from "jsr:@core/unknownutil@~4.3.0";
+import { equal } from "jsr:@std/assert@~1.0.1/equal";
 import { Popup, PopupCreateArgs } from "./base.ts";
 import { invokeVimFunction, strBytesLength } from "../util.ts";
 import { isActionParamCount1, Params } from "../../ff_vim_popup.ts";

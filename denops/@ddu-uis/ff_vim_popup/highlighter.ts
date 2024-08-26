@@ -1,4 +1,7 @@
-import { batch, type Denops, fn, vimFn } from "./deps.ts";
+import { type Denops } from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { batch } from "jsr:@denops/std@~7.0.1/batch";
+import * as fn from "jsr:@denops/std@~7.0.1/function";
+import * as vimFn from "jsr:@denops/std@~7.0.1/function/vim";
 
 type PropOpts = {
   propTypeName: string;

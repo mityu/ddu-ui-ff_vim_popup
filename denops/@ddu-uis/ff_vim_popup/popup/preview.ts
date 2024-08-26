@@ -1,24 +1,26 @@
 import {
   ActionFlags,
-  as,
-  assert,
   BaseActionParams,
-  batch,
   BufferPreviewer,
   DduItem,
   type Denops,
-  ensure,
-  equal,
-  fn,
-  is,
   NoFilePreviewer,
-  options,
-  PredicateType,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
-  vimFn,
-} from "../deps.ts";
+} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { batch } from "jsr:@denops/std@~7.0.1/batch";
+import * as fn from "jsr:@denops/std@~7.0.1/function";
+import * as vimFn from "jsr:@denops/std@~7.0.1/function/vim";
+import * as options from "jsr:@denops/std@~7.0.1/option";
+import {
+  as,
+  assert,
+  ensure,
+  is,
+  type PredicateType,
+} from "jsr:@core/unknownutil@~4.3.0";
+import { equal } from "jsr:@std/assert@~1.0.1/equal";
 import { invokeVimFunction } from "../util.ts";
 import { Highlighter } from "../highlighter.ts";
 import { Popup, PopupCreateArgs } from "./base.ts";

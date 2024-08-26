@@ -1,4 +1,6 @@
-import { type Denops, ensure, fn, is } from "./deps.ts";
+import { type Denops } from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { ensure, is } from "jsr:@core/unknownutil@~4.3.0";
+import * as fn from "jsr:@denops/std@~7.0.1/function";
 import { strBytesLength, strBytesPart } from "./util.ts";
 
 export class LineBuffer {

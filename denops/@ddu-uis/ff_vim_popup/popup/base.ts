@@ -1,4 +1,9 @@
-import { batch, type Denops, ensure, fn, is, lambda, vimFn } from "../deps.ts";
+import { type Denops } from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import { batch } from "jsr:@denops/std@~7.0.1/batch";
+import * as lambda from "jsr:@denops/std@~7.0.1/lambda";
+import * as fn from "jsr:@denops/std@~7.0.1/function";
+import * as vimFn from "jsr:@denops/std@~7.0.1/function/vim";
+import { ensure, is } from "jsr:@core/unknownutil@~4.3.0";
 import { echomsgError } from "../util.ts";
 
 export type UserCallback = (denops: Denops, winId: number) => Promise<void>;
