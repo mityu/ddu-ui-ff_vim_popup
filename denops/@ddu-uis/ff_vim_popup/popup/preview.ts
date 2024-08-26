@@ -9,10 +9,10 @@ import {
   Previewer,
   TerminalPreviewer,
 } from "jsr:@shougo/ddu-vim@~5.0.0/types";
-import { batch } from "jsr:@denops/std@~7.0.1/batch";
-import * as fn from "jsr:@denops/std@~7.0.1/function";
-import * as vimFn from "jsr:@denops/std@~7.0.1/function/vim";
-import * as options from "jsr:@denops/std@~7.0.1/option";
+import { batch } from "jsr:@denops/std@~7.1.0/batch";
+import * as fn from "jsr:@denops/std@~7.1.0/function";
+import * as vimFn from "jsr:@denops/std@~7.1.0/function/vim";
+import * as options from "jsr:@denops/std@~7.1.0/option";
 import {
   as,
   assert,

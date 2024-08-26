@@ -11,8 +11,8 @@ import {
   UiActions,
   UiOptions,
 } from "jsr:@shougo/ddu-vim@~5.0.0/types";
-import { batch } from "jsr:@denops/std@~7.0.1/batch";
-import * as vars from "jsr:@denops/std@~7.0.1/variable";
+import { batch } from "jsr:@denops/std@~7.1.0/batch";
+import * as vars from "jsr:@denops/std@~7.1.0/variable";
 import {
   as,
   ensure,
