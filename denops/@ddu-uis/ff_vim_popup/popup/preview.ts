@@ -1,14 +1,14 @@
+import type { Denops } from "jsr:@denops/std@~7.1.0";
 import {
   ActionFlags,
-  BaseActionParams,
+  BaseParams,
   BufferPreviewer,
   DduItem,
-  type Denops,
   NoFilePreviewer,
   PreviewContext,
   Previewer,
   TerminalPreviewer,
-} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+} from "jsr:@shougo/ddu-vim@~6.2.0/types";
 import { batch } from "jsr:@denops/std@~7.1.0/batch";
 import * as fn from "jsr:@denops/std@~7.1.0/function";
 import * as vimFn from "jsr:@denops/std@~7.1.0/function/vim";
@@ -66,7 +66,7 @@ export class PreviewPopup extends Popup {
     getPreviewer?: (
       denops: Denops,
       item: DduItem,
-      actionParams: BaseActionParams,
+      actionParams: BaseParams,
       previewContext: PreviewContext,
     ) => Promise<Previewer | undefined>,
   ): Promise<ActionFlags> {
@@ -103,7 +103,7 @@ export class PreviewPopup extends Popup {
     const previewer = await getPreviewer(
       denops,
       item,
-      actionParams as BaseActionParams,
+      actionParams as BaseParams,
       previewContext,
     );
     if (!previewer) {

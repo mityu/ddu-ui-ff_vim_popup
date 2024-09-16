@@ -1,10 +1,10 @@
+import type { Denops } from "jsr:@denops/std@~7.1.0";
 import {
   ActionFlags,
   type DduItem,
   type DduOptions,
-  type Denops,
   type ItemHighlight,
-} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+} from "jsr:@shougo/ddu-vim@~6.2.0/types";
 import { batch } from "jsr:@denops/std@~7.1.0/batch";
 import * as vars from "jsr:@denops/std@~7.1.0/variable";
 import * as fn from "jsr:@denops/std@~7.1.0/function";

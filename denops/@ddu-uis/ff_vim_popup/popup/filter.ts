@@ -1,4 +1,5 @@
-import { ActionFlags, type Denops } from "jsr:@shougo/ddu-vim@~5.0.0/types";
+import type { Denops } from "jsr:@denops/std@~7.1.0";
+import { ActionFlags } from "jsr:@shougo/ddu-vim@~6.2.0/types";
 import { batch } from "jsr:@denops/std@~7.1.0/batch";
 import * as fn from "jsr:@denops/std@~7.1.0/function";
 import * as vimFn from "jsr:@denops/std@~7.1.0/function/vim";

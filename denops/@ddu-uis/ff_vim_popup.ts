@@ -1,16 +1,15 @@
 import {
   ActionFlags,
-  BaseActionParams,
-  BaseUi,
+  BaseParams,
   Context,
   type DduItem,
   type DduOptions,
-  type Denops,
   PreviewContext,
   Previewer,
-  UiActions,
   UiOptions,
-} from "jsr:@shougo/ddu-vim@~5.0.0/types";
+} from "jsr:@shougo/ddu-vim@~6.2.0/types";
+import { BaseUi, UiActions } from "jsr:@shougo/ddu-vim@~6.2.0/ui";
+import type { Denops } from "jsr:@denops/std@~7.1.0";
 import { batch } from "jsr:@denops/std@~7.1.0/batch";
 import * as vars from "jsr:@denops/std@~7.1.0/variable";
 import {
@@ -336,7 +335,7 @@ export class Ui extends BaseUi<Params> {
       getPreviewer?: (
         denops: Denops,
         item: DduItem,
-        actionParams: BaseActionParams,
+        actionParams: BaseParams,
         previewContext: PreviewContext,
       ) => Promise<Previewer | undefined>;
     }): Promise<ActionFlags> => {
