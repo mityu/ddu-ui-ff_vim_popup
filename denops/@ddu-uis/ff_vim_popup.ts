@@ -211,6 +211,10 @@ export class Ui extends BaseUi<Params> {
     await this.#listerPopup.searchItem(args);
   }
 
+  override clearSelectedItems() {
+    this.#listerPopup.actionClearSelectAllItems();
+  }
+
   override async redraw(args: {
     denops: Denops;
     context: Context;
