@@ -265,8 +265,7 @@ export class Ui extends BaseUi<Params> {
       args.denops,
       layout.filter,
       async (denops: Denops, _: number) =>
-        // This may should be "quit" action of ddu.vim
-        await this.#onClose(denops),
+        await this.#onClose(denops, args.options.name),
       args.uiParams,
       uiName,
     );
@@ -282,12 +281,14 @@ export class Ui extends BaseUi<Params> {
     }
   }
 
-  async #onClose(denops: Denops) {
+  async #onClose(denops: Denops, dduName: string) {
     if (!this.#sessionId) {
       // Closing process is already done.
       return;
     }
     this.#sessionId = undefined;
+
+    denops.dispatcher.event(dduName, "close");
 
     await batch(denops, async (denops) => {
       await this.#filterPopup.onClose(denops);
@@ -303,8 +304,7 @@ export class Ui extends BaseUi<Params> {
       denops: Denops;
       options: DduOptions;
     }): Promise<ActionFlags> => {
-      await this.#onClose(args.denops);
-      await args.denops.dispatcher.pop(args.options.name);
+      await this.#onClose(args.denops, args.options.name);
       return ActionFlags.None;
     },
     itemAction: async (args: {
