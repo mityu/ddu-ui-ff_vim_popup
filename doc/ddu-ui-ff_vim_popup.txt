@@ -1,0 +1,353 @@
+*ddu-ui-ff_vim_popup.txt*	Fuzzy finder UI for ddu.vim on Vim
+
+Author: mityu
+License: MIT License
+
+==============================================================================
+CONTENTS					*ddu-ui-ff_vim_popup-contents*
+
+REQUIREMENTS                            |ddu-ui-ff_vim_popup-requirements|
+INTERFACE                               |ddu-ui-ff_vim_popup-interface|
+  FUNCTIONS                             |ddu-ui-ff_vim_popup-functions|
+  ACTIONS                               |ddu-ui-ff_vim_popup-actions|
+  PARAMS                                |ddu-ui-ff_vim_popup-params|
+  AUTOCMDS                              |ddu-ui-ff_vim_popup-autocmds|
+EXAMPLES                                |ddu-ui-ff_vim_popup-examples|
+
+
+==============================================================================
+REQUIREMENTS				*ddu-ui-ff_vim_popup-requirements*
+
+- Vim 9.1.0500 or later
+- denops.vim:	https://github.com/vim-denops/denops.vim
+- ddu.vim:	https://github.com/Shougo/ddu.vim
+
+
+==============================================================================
+INTERFACE				*ddu-ui-ff_vim_popup-interface*
+
+------------------------------------------------------------------------------
+FUNCTIONS				*ddu-ui-ff_vim_popup-functions*
+
+			*ddu-ui-ff_vim_popup-ddu#ui#ff_vim_popup#MapAction()*
+ddu#ui#ff_vim_popup#MapAction({modes}, {lhs}, {action} [, {params}])
+	Types:
+	  {modes}: string
+	  {lhs}: string
+	  {action}: string
+	  {params}: dict<any>
+	  Return: void
+
+	Map {lhs} keys to {action} in {mode}.
+	Note that due to the implementation limitation, you cannot map <C-c>.
+
+					*ddu-ui-ff_vim_popup-mapping-modes*
+	{modes} is one of "n" and "i".  "n" is stands for normal mode and "i"
+	stands for insert mode.  Or, you can specify combine of some of these,
+	e.g. use "ni" to indicate both normal mode and insert mode.
+
+	{action} is a name of an action to invoke, and {params} is a
+	parameters which is passed to {action}.  See
+	|ddu-ui-ff_vim_popup-action| for the list of available actions.
+
+	Example: >
+		call ddu#ui#ff_vim_popup#MapAction('n', '<ESC>', 'quit')
+		call ddu#ui#ff_vim_popup#MapAction(
+		  \ 'n', 'o', 'expandItem', {'mode': 'toggle'})
+		call ddu#ui#ff_vim_popup#MapAction(
+		  \ 'ni', '<C-j>', 'selectLowerItem')
+<
+
+			*ddu-ui-ff_vim_popup-ddu#ui#ff_vim_popup#MapKey()*
+ddu#ui#ff_vim_popup#MapKey({modes}, {lhs}, {rhs})
+	Types:
+	  {modes}: string
+	  {lhs}: string
+	  {rhs}: string
+	  Return: void
+
+	Map {lhs} keys to {rhs} in {modes}.  This is like a |:map| command for
+	this UI plugin.  For the details of {modes}, please see
+	|ddu-ui-ff_vim_popup-mapping-modes|.
+	Note that due to the implementation limitation, you cannot map <C-c>.
+
+	Example: >
+		call ddu#ui#ff_vim_popup#MapAction('n', 'u', 'undoInput')
+		call ddu#ui#ff_vim_popup#MapAction(
+		    \ 'i', '<CR>', 'MoveToNormalMode')
+		call ddu#ui#ff_vim_popup#MapKey('i', '<ESC>', '<CR>u')
+<
+
+
+		*ddu-ui-ff_vim_popup-ddu#ui#ff_vim_popup#MapFunction()*
+ddu#ui#ff_vim_popup#MapFunction({modes}, {lhs}, {Fn})
+	Types:
+	  {modes}: string
+	  {lhs}: string
+	  {Fn}: func
+	  Return: void
+
+	Map {lhs} keys to user defined function {Fn} in {modes}.
+	For the details of {modes}, please see
+	|ddu-ui-ff_vim_popup-mapping-modes|.
+	Note that due to the implementation limitation, you cannot map <C-c>.
+
+
+		*ddu-ui-ff_vim_popup-ddu#ui#ff_vim_popup#Unmap()*
+ddu#ui#ff_vim_popup#Unmap({modes}, {lhs})
+	Types:
+	  {modes}: string
+	  {lhs}: string
+	  Return: void
+
+	Remove mappings for {lhs} keys in {modes}.  This is like a |:unmap|
+	command for this UI plugin.  For the details of {modes}, please see
+	|ddu-ui-ff_vim_popup-mapping-modes|.
+
+	Example: >
+		call ddu#ui#ff_vim_popup#Unmap('n', '<C-j>')
+<
+
+------------------------------------------------------------------------------
+ACTIONS					*ddu-ui-ff_vim_popup-actions*
+
+
+			*ddu-ui-ff_vim_popup-action-quit*
+quit
+		Quit the UI window.
+
+			*ddu-ui-ff_vim_popup-action-itemAction*
+itemAction
+		params:
+			{name}: Action name to invoke.
+			{params}: Parameters for the {name} action.
+
+		Close the UI window and invoke the {name} action for the
+		selected items if present or the current cursor item.
+		If the {name} parameter is not given, "default" action will be
+		invoked.
+
+			*ddu-ui-ff_vim_popup-action-previewItem*
+previewItem
+		Preview the current cursor item in preview window.
+
+			*ddu-ui-ff_vim_popup-action-selectUpperItem*
+selectUpperItem
+		Select an upper item on the displayed item list.
+
+			*ddu-ui-ff_vim_popup-action-selectLowerItem*
+selectLowerItem
+		Select a lower item on the displayed item list.
+
+			*ddu-ui-ff_vim_popup-action-collapseItem*
+collapseItem
+		TODO: write
+
+			*ddu-ui-ff_vim_popup-action-expandItem*
+expandItem
+		TODO: write
+
+			*ddu-ui-ff_vim_popup-action-toggleSelectItem*
+toggleSelectItem
+		Add the current cursor item to the selected item list if it's
+		not in the list, or remove it from the list.
+
+			*ddu-ui-ff_vim_popup-action-toggleAllItems*
+toggleAllItems
+		Apply |dd-ui-ff_vim_popup-action-toggleSelectItem| action for
+		the every item.
+
+			*ddu-ui-ff_vim_popup-action-clearSelectAllItems*
+clearSelectAllItems
+		Remove all the items from the selected item list.
+
+			*ddu-ui-ff_vim_popup-action-chooseAction*
+chooseAction
+		Choose an action using ddu UI and invoke the selected one for
+		the selected items or the current item.  This action quits the
+		UI after executing the action.
+
+		Note that this action reqruies "ddu-source-action" source.
+		https://github.com/Shougo/ddu-source-action
+
+			*ddu-ui-ff_vim_popup-action-moveToInsertMode*
+moveToInsertMode
+		Change the mode to insert mode.
+
+			*ddu-ui-ff_vim_popup-action-undoInput*
+undoInput
+		Undo the last changes for the filter text.
+
+			*ddu-ui-ff_vim_popup-action-redoInput*
+redoInput
+		Redo the last undo by |ddu-ui-ff_vim_popup-action-undoInput|
+		action.
+
+			*ddu-ui-ff_vim_popup-action-moveToNormalMode*
+moveToNormalMode
+		Change the mode to normal mode.
+
+			*ddu-ui-ff_vim_popup-action-addChar*
+addChar
+		TODO: write
+
+			*ddu-ui-ff_vim_popup-action-deleteByRegex*
+deleteByRegex
+		TODO: write
+
+			*ddu-ui-ff_vim_popup-action-deleteChar*
+deleteChar
+		Delete the character before the cursor in filter text.  This
+		is like |i_CTRL-H|
+
+			*ddu-ui-ff_vim_popup-action-deleteWord*
+deleteWord
+		Delete the word before the cursor in filter text.  This is
+		like |i_CTRL-W|.
+
+			*ddu-ui-ff_vim_popup-action-deleteToHead*
+deleteToHead
+		Delete all the characters before the cursor in filter text.
+		This is like |i_CTRL-U|.
+
+			*ddu-ui-ff_vim_popup-action-moveForward*
+moveForward
+		Move the cursor for one character next in filter text.  This
+		is like |l|.
+
+			*ddu-ui-ff_vim_popup-action-moveBackward*
+moveBackward
+		Move the cursor for one character previous in filter text.
+		This is like |h|.
+
+			*ddu-ui-ff_vim_popup-action-moveToHead*
+moveToHead
+		Move the cursor to the head of filter text.  This is like |0|.
+
+			*ddu-ui-ff_vim_popup-action-moveToTail*
+moveToTail
+		Move the cursor to the tail of filter text.  This is like |$|.
+
+------------------------------------------------------------------------------
+PARAMS					*ddu-ui-ff_vim_popup-params*
+
+				*ddu-ui-ff_vim_popup-param-bounds*
+bounds
+		Type: dict<any> or string
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-listerBorder*
+listerBorder
+		Type: dict<any>
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-filterBorder*
+filterBorder
+		Type: dict<any>
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-previewBorder*
+previewBorder
+		Type: dict<any>
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-filterPosition*
+filterPosition
+		Type: string
+
+		Specify the position of the filter window.  The valid values
+		are "top" and "bottom".  If "top" is specified the filter
+		window is placed above the lister window, and if "bottom" is
+		specified the filter window is placed below the lister window.
+
+
+				*ddu-ui-ff_vim_popup-param-highlights*
+highlights
+		Type: dict<string>
+		Default:
+
+		Specify highlight colors for some elements.  Valid keys are:
+		  "popup"	The color of popup windows of this UI.
+		  "cursor"	The cursor color in filter window.
+		  "cursorline"	The color of current cursor line in lister
+				window.
+		  "selected"	The color of items which are in the selected
+				item list.
+		  "previewline"	The color of focused line in preview window.
+
+				*ddu-ui-ff_vim_popup-param-displayTree*
+displayTree
+		Type: bool
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-reversed*
+reversed
+		Type: bool
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-hideCursor*
+hideCursor
+		Type: bool
+		TODO: write
+
+				*ddu-ui-ff_vim_popup-param-prompt*
+prompt
+		Type: string
+		TODO: write
+
+
+------------------------------------------------------------------------------
+AUTOCMDS				*ddu-ui-ff_vim_popup-autocmds*
+
+ddu-ui-ff_vim_popup provides some |User| autocmds.
+
+
+Ddu:ui:ff_vim_popup:openWindowPre
+	TODO: write
+
+
+==============================================================================
+EXAMPLES				*ddu-ui-ff_vim_popup-examples*
+
+>
+	vim9script
+
+	import autoload 'ddu/ui/ff_vim_popup.vim' as DduFFVim
+
+	ddu#custom#patch_global({ui: 'ff_vim_popup'})
+
+	def DduMapping()
+	  DduFFVim.MapAction('n', 'q', 'quit')
+	  DduFFVim.MapAction('n', 'j', 'selectLowerItem')
+	  DduFFVim.MapAction('n', 'k', 'selectUpperItem')
+	  DduFFVim.MapAction('n', 'i', 'moveToInsertMode')
+	  DduFFVim.MapAction('n', '<CR>', 'itemAction')
+	  DduFFVim.MapAction('n', 'u', 'undoInput')
+	  DduFFVim.MapAction('n', '<C-r>', 'redoInput')
+	  DduFFVim.MapAction('n', 'p', 'previewItem')
+	  DduFFVim.MapAction('n', 'a', 'chooseAction')
+	  DduFFVim.MapAction('n', '<Tab>', 'chooseAction')
+
+	  DduFFVim.MapAction('i', '<ESC>', 'moveToNormalMode')
+	  DduFFVim.MapAction('i', '<CR>', 'moveToNormalMode')
+	  DduFFVim.MapAction('i', '<C-f>', 'moveForward')
+	  DduFFVim.MapAction('i', '<C-b>', 'moveBackward')
+	  DduFFVim.MapAction('i', '<C-a>', 'moveToHead')
+	  DduFFVim.MapAction('i', '<C-e>', 'moveToTail')
+	  DduFFVim.MapAction('i', '<C-n>', 'selectLowerItem')
+	  DduFFVim.MapAction('i', '<C-p>', 'selectUpperItem')
+	  DduFFVim.MapAction('i', '<C-h>', 'deleteChar')
+	  DduFFVim.MapAction('i', '<Del>', 'deleteChar')
+	  DduFFVim.MapAction('i', '<BS>', 'deleteChar')
+	  DduFFVim.MapAction('i', '<C-w>', 'deleteWord')
+	  DduFFVim.MapAction('i', '<C-u>', 'deleteToHead')
+	enddef
+
+	augroup ddu-config
+	  autocmd!
+	  autocmd User Ddu:ui:ff_vim_popup:openWindowPre DduMapping()
+	augroup END
+<
+
+==============================================================================
+vim:tw=78:fo=tcq2mM:ts=8:ft=help:norl
