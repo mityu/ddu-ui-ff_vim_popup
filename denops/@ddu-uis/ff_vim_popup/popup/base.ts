@@ -1,9 +1,9 @@
-import { type Denops } from "jsr:@denops/std@~7.1.0";
+import type { Denops } from "jsr:@denops/std@~7.1.0";
 import { batch } from "jsr:@denops/std@~7.1.0/batch";
 import * as lambda from "jsr:@denops/std@~7.1.0/lambda";
 import * as fn from "jsr:@denops/std@~7.1.0/function";
 import * as vimFn from "jsr:@denops/std@~7.1.0/function/vim";
-import { ensure, is } from "jsr:@core/unknownutil@~4.3.0";
+import { assert, ensure, is } from "jsr:@core/unknownutil@~4.3.0";
 import { echomsgError } from "../util.ts";
 
 export type UserCallback = (denops: Denops, winId: number) => Promise<void>;
@@ -82,16 +82,20 @@ export class Popup {
   }
 
   async setText(denops: Denops, text: string | string[]): Promise<void> {
+    assert(this.#winId, is.Number);
     await vimFn.popup_settext(denops, this.#winId, text);
   }
 
   async setBuffer(denops: Denops, bufnr: number): Promise<void> {
     await batch(denops, async (denops: Denops) => {
-      await denops.call("popup_setbuf", this.#winId!, bufnr);
-      await vimFn.popup_setoptions(denops, this.#winId!, {
+      assert(this.#winId, is.Number);
+      await denops.call("popup_setbuf", this.#winId, bufnr);
+      await vimFn.popup_setoptions(denops, this.#winId, {
         highlight: this.#highlight,
         wrap: false,
       });
+      await fn.setwinvar(denops, this.#winId, "&foldmethod", "manual");
+      await fn.setwinvar(denops, this.#winId, "&foldenable", false);
     });
     this.#bufnr = bufnr;
   }
