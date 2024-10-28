@@ -250,7 +250,7 @@ export class Ui extends BaseUi<Params> {
     ].filter((v) => v.exists()).map((v) => v.getWinId()!);
   }
 
-  override async #openWindows(args: {
+  async #openWindows(args: {
     denops: Denops;
     options: DduOptions;
     uiParams: Params;
