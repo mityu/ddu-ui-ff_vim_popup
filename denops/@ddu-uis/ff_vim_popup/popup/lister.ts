@@ -1,13 +1,13 @@
-import type { Denops } from "jsr:@denops/std@~7.1.0";
+import type { Denops } from "jsr:@denops/std@~7.3.0";
 import {
   ActionFlags,
   type DduItem,
   type DduOptions,
   type ItemHighlight,
 } from "jsr:@shougo/ddu-vim@~6.2.0/types";
-import { batch } from "jsr:@denops/std@~7.1.0/batch";
-import * as vars from "jsr:@denops/std@~7.1.0/variable";
-import * as fn from "jsr:@denops/std@~7.1.0/function";
+import { batch } from "jsr:@denops/std@~7.3.0/batch";
+import * as vars from "jsr:@denops/std@~7.3.0/variable";
+import * as fn from "jsr:@denops/std@~7.3.0/function";
 import {
   as,
   assert,

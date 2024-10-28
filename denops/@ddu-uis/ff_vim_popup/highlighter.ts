@@ -1,7 +1,7 @@
-import { type Denops } from "jsr:@denops/std@~7.1.0";
-import { batch } from "jsr:@denops/std@~7.1.0/batch";
-import * as fn from "jsr:@denops/std@~7.1.0/function";
-import * as vimFn from "jsr:@denops/std@~7.1.0/function/vim";
+import { type Denops } from "jsr:@denops/std@~7.3.0";
+import { batch } from "jsr:@denops/std@~7.3.0/batch";
+import * as fn from "jsr:@denops/std@~7.3.0/function";
+import * as vimFn from "jsr:@denops/std@~7.3.0/function/vim";
 
 type PropOpts = {
   propTypeName: string;
