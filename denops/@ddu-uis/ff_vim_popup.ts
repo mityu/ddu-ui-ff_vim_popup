@@ -7,11 +7,11 @@ import {
   PreviewContext,
   Previewer,
   UiOptions,
-} from "jsr:@shougo/ddu-vim@~6.2.0/types";
-import { BaseUi, UiActions } from "jsr:@shougo/ddu-vim@~6.2.0/ui";
-import type { Denops } from "jsr:@denops/std@~7.3.0";
-import { batch } from "jsr:@denops/std@~7.3.0/batch";
-import * as vars from "jsr:@denops/std@~7.3.0/variable";
+} from "jsr:@shougo/ddu-vim@~10.0.0/types";
+import { BaseUi, UiActions } from "jsr:@shougo/ddu-vim@~10.0.0/ui";
+import type { Denops } from "jsr:@denops/std@~7.4.0";
+import { batch } from "jsr:@denops/std@~7.4.0/batch";
+import * as vars from "jsr:@denops/std@~7.4.0/variable";
 import {
   as,
   ensure,

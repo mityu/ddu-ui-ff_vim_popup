@@ -1,4 +1,4 @@
-import type { Denops } from "jsr:@denops/std@~7.3.0";
+import type { Denops } from "jsr:@denops/std@~7.4.0";
 import {
   ActionFlags,
   BaseParams,
@@ -8,11 +8,11 @@ import {
   PreviewContext,
   Previewer,
   TerminalPreviewer,
-} from "jsr:@shougo/ddu-vim@~6.2.0/types";
-import { batch } from "jsr:@denops/std@~7.3.0/batch";
-import * as fn from "jsr:@denops/std@~7.3.0/function";
-import * as vimFn from "jsr:@denops/std@~7.3.0/function/vim";
-import * as options from "jsr:@denops/std@~7.3.0/option";
+} from "jsr:@shougo/ddu-vim@~10.0.0/types";
+import { batch } from "jsr:@denops/std@~7.4.0/batch";
+import * as fn from "jsr:@denops/std@~7.4.0/function";
+import * as vimFn from "jsr:@denops/std@~7.4.0/function/vim";
+import * as options from "jsr:@denops/std@~7.4.0/option";
 import {
   as,
   assert,
